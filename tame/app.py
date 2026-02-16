@@ -216,6 +216,8 @@ class TAMEApp(App):
         self._notification_engine.on_sidebar_flash = self._handle_sidebar_flash
 
         self._active_session_id: str | None = None
+        self._pending_status_updates: set[str] = set()
+        self._status_update_scheduled: bool = False
 
     def _get_patterns_from_config(self, cfg: dict) -> dict[str, list[str]]:
         patterns_cfg = cfg.get("patterns", {})
@@ -318,15 +320,26 @@ class TAMEApp(App):
     # ------------------------------------------------------------------
 
     def on_session_status_changed(self, event: SessionStatusChanged) -> None:
-        try:
-            session = self._session_manager.get_session(event.session_id)
-        except KeyError:
-            return
+        self._pending_status_updates.add(event.session_id)
+        if not self._status_update_scheduled:
+            self._status_update_scheduled = True
+            self.set_timer(0.05, self._flush_status_updates, name="status_debounce")
+
+    def _flush_status_updates(self) -> None:
+        """Batch-apply all pending sidebar/header/status-bar updates."""
+        self._status_update_scheduled = False
+        pending = self._pending_status_updates.copy()
+        self._pending_status_updates.clear()
         sidebar = self.query_one(SessionSidebar)
-        sidebar.update_session(session)
-        if event.session_id == self._active_session_id:
-            header = self.query_one(HeaderBar)
-            header.update_from_session(session)
+        header = self.query_one(HeaderBar)
+        for sid in pending:
+            try:
+                session = self._session_manager.get_session(sid)
+            except KeyError:
+                continue
+            sidebar.update_session(session)
+            if sid == self._active_session_id:
+                header.update_from_session(session)
         self._update_status_bar()
 
     def on_sidebar_flash(self, event: SidebarFlash) -> None:

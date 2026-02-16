@@ -46,6 +46,8 @@ class SessionManager:
         self._idle_check_interval: float = idle_check_interval
         self._idle_prompt_timeout: float = idle_prompt_timeout
         self._idle_checker_task: asyncio.Task | None = None
+        # Cache last-scanned partial to avoid redundant regex work (#19)
+        self._last_scanned_partial: dict[str, str] = {}
         # Pending weak prompt timers — session_id -> asyncio.TimerHandle
         self._weak_prompt_timers: dict[str, asyncio.TimerHandle] = {}
 
@@ -95,6 +97,8 @@ class SessionManager:
         if session.pty_process:
             session.pty_process.close()
         self._scan_partials.pop(session_id, None)
+        self._last_scanned_partial.pop(session_id, None)
+        self._cancel_weak_prompt_timer(session_id)
         del self._sessions[session_id]
 
     def get_session(self, session_id: str) -> Session:
@@ -226,8 +230,10 @@ class SessionManager:
             # progress is informational — no status change
 
         # Some interactive CLIs print prompts without trailing newline.
+        # Cache last-scanned partial to avoid redundant regex work (#19).
         partial = self._scan_partials.get(session_id, "")
-        if partial:
+        if partial and partial != self._last_scanned_partial.get(session_id):
+            self._last_scanned_partial[session_id] = partial
             partial_match = session.pattern_matcher.scan(partial)
             if partial_match and partial_match.category == "prompt":
                 self._set_attention_state(session, AttentionState.NEEDS_INPUT, partial.strip())
@@ -384,6 +390,7 @@ class SessionManager:
                 session.pty_process.close()
         self._sessions.clear()
         self._scan_partials.clear()
+        self._last_scanned_partial.clear()
 
     # ------------------------------------------------------------------
     # Helpers

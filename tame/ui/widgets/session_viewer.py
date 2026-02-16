@@ -82,6 +82,9 @@ class SessionViewer(Widget):
     }
     """
 
+    # Target ≤60 UI updates/sec per session
+    _RENDER_INTERVAL: float = 1.0 / 60
+
     def __init__(self) -> None:
         super().__init__(id="session-viewer")
         self._fallback_text: str = ""
@@ -92,20 +95,37 @@ class SessionViewer(Widget):
         self._active_terminal: _TerminalState | None = None
         self._scroll_offset: int = 0  # 0 = at bottom
         self._auto_scroll: bool = True
+        self._dirty: bool = False
+        self._refresh_timer = None
 
     def append_output(self, text: str) -> None:
-        """Feed new PTY output into terminal state and refresh display."""
+        """Feed new PTY output into terminal state and schedule a refresh."""
         if not text:
             return
 
         if self._active_terminal is None:
             self._fallback_text += text
-            self.refresh()
+            self._schedule_refresh()
             return
 
         self._active_terminal.feed(text)
         if self._auto_scroll:
             self._scroll_offset = 0
+        self._schedule_refresh()
+
+    def _schedule_refresh(self) -> None:
+        """Coalesce rapid refresh requests into at most 60/sec."""
+        if self._dirty:
+            return  # Already scheduled
+        self._dirty = True
+        self._refresh_timer = self.set_timer(
+            self._RENDER_INTERVAL, self._flush_refresh, name="viewer_refresh"
+        )
+
+    def _flush_refresh(self) -> None:
+        """Flush a pending refresh."""
+        self._dirty = False
+        self._refresh_timer = None
         self.refresh()
 
     def load_session(self, session_id: str, output_buffer: OutputBuffer) -> None:
