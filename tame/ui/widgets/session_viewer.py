@@ -58,7 +58,7 @@ class _TerminalState:
 
     def __init__(self, session_id: str, rows: int, cols: int) -> None:
         self.session_id = session_id
-        self.screen = pyte.Screen(columns=cols, lines=rows)
+        self.screen = pyte.HistoryScreen(columns=cols, lines=rows, history=10000)
         self.stream = pyte.Stream(self.screen)
 
     def feed(self, text: str) -> None:
@@ -90,6 +90,8 @@ class SessionViewer(Widget):
         self._has_session: bool = False
         self._terminals: dict[str, _TerminalState] = {}
         self._active_terminal: _TerminalState | None = None
+        self._scroll_offset: int = 0  # 0 = at bottom
+        self._auto_scroll: bool = True
 
     def append_output(self, text: str) -> None:
         """Feed new PTY output into terminal state and refresh display."""
@@ -102,11 +104,15 @@ class SessionViewer(Widget):
             return
 
         self._active_terminal.feed(text)
+        if self._auto_scroll:
+            self._scroll_offset = 0
         self.refresh()
 
     def load_session(self, session_id: str, output_buffer: OutputBuffer) -> None:
         """Switch to a session, replaying its buffer only on first visit."""
         self._has_session = True
+        self._scroll_offset = 0
+        self._auto_scroll = True
 
         if pyte is None:
             self._fallback_text = output_buffer.get_all_text()
@@ -179,6 +185,21 @@ class SessionViewer(Widget):
 
         self.refresh()
 
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        """Scroll up through history."""
+        history_len = len(self._active_terminal.screen.history.top) if self._active_terminal else 0
+        if history_len > 0:
+            self._scroll_offset = min(self._scroll_offset + 3, history_len)
+            self._auto_scroll = False
+            self.refresh()
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        """Scroll down toward live output."""
+        self._scroll_offset = max(0, self._scroll_offset - 3)
+        if self._scroll_offset == 0:
+            self._auto_scroll = True
+        self.refresh()
+
     def render(self) -> Text:
         if not self._has_session:
             return self._render_welcome()
@@ -249,26 +270,55 @@ class SessionViewer(Widget):
         screen = self._active_terminal.screen
         rows = max(1, self._rows)
         cols = max(1, self._cols)
-        cursor = screen.cursor
-        cursor_x = getattr(cursor, "x", -1)
-        cursor_y = getattr(cursor, "y", -1)
-        cursor_hidden = bool(getattr(cursor, "hidden", False))
-        has_focus = self.has_focus
 
         output = Text()
-        buffer = screen.buffer
 
-        for y in range(rows):
-            row = buffer.get(y, {})
-            for x in range(cols):
-                char = row.get(x)
-                symbol = " " if char is None else (char.data or " ")
-                style = self._char_style(char)
-                if has_focus and not cursor_hidden and x == cursor_x and y == cursor_y:
-                    style += Style(reverse=True)
-                output.append(symbol, style=style)
-            if y < rows - 1:
-                output.append("\n")
+        if self._scroll_offset > 0:
+            # Render from scrollback history
+            history_lines = list(screen.history.top)
+            total_history = len(history_lines)
+
+            # Calculate which lines to show
+            start = max(0, total_history - self._scroll_offset)
+
+            # Mix history lines and screen lines
+            visible_lines: list[dict] = []
+            for i in range(start, min(start + rows, total_history)):
+                visible_lines.append(history_lines[i])
+
+            remaining = rows - len(visible_lines)
+            if remaining > 0:
+                for y in range(min(remaining, rows)):
+                    visible_lines.append(screen.buffer.get(y, {}))
+
+            for y_idx, row in enumerate(visible_lines[:rows]):
+                for x in range(cols):
+                    char = row.get(x)
+                    symbol = " " if char is None else (char.data or " ")
+                    style = self._char_style(char)
+                    output.append(symbol, style=style)
+                if y_idx < rows - 1:
+                    output.append("\n")
+        else:
+            # Normal rendering (at bottom)
+            buffer = screen.buffer
+            cursor = screen.cursor
+            cursor_x = getattr(cursor, "x", -1)
+            cursor_y = getattr(cursor, "y", -1)
+            cursor_hidden = bool(getattr(cursor, "hidden", False))
+            has_focus = self.has_focus
+
+            for y in range(rows):
+                row = buffer.get(y, {})
+                for x in range(cols):
+                    char = row.get(x)
+                    symbol = " " if char is None else (char.data or " ")
+                    style = self._char_style(char)
+                    if has_focus and not cursor_hidden and x == cursor_x and y == cursor_y:
+                        style += Style(reverse=True)
+                    output.append(symbol, style=style)
+                if y < rows - 1:
+                    output.append("\n")
 
         return output
 
