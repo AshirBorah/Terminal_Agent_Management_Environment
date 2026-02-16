@@ -184,12 +184,14 @@ class TAMEApp(App):
         self._reserved_keys.add("ctrl+@")
         self._reserved_keys.add("ctrl+space")
 
+        sessions_cfg = cfg.get("sessions", {})
+        idle_threshold = float(sessions_cfg.get("idle_threshold_seconds", 300))
         self._session_manager = SessionManager(
             on_status_change=self._handle_status_change,
             on_output=self._handle_pty_output,
             patterns=self._get_patterns_from_config(cfg),
+            idle_threshold_seconds=idle_threshold,
         )
-        sessions_cfg = cfg.get("sessions", {})
         default_working_dir = str(sessions_cfg.get("default_working_directory", "")).strip()
         self._default_working_dir = os.path.expanduser(default_working_dir) if default_working_dir else os.path.expanduser("~")
         default_shell = str(sessions_cfg.get("default_shell", "")).strip()
@@ -264,6 +266,7 @@ class TAMEApp(App):
     def on_mount(self) -> None:
         loop = asyncio.get_running_loop()
         self._session_manager.attach_to_loop(loop)
+        self._session_manager.start_idle_checker()
         self.call_later(self._restore_tmux_sessions_async)
         log.info("TAME started")
 

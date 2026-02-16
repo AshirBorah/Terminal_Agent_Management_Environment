@@ -29,6 +29,8 @@ class SessionManager:
         on_status_change: StatusChangeCallback | None = None,
         on_output: OutputCallback | None = None,
         patterns: dict[str, list[str]] | None = None,
+        idle_threshold_seconds: float = 300.0,
+        idle_check_interval: float = 30.0,
     ) -> None:
         self._sessions: dict[str, Session] = {}
         self._scan_partials: dict[str, str] = {}
@@ -39,6 +41,9 @@ class SessionManager:
             base.update({cat: list(rxs) for cat, rxs in patterns.items()})
         self._patterns: dict[str, list[str]] = base
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._idle_threshold: float = idle_threshold_seconds
+        self._idle_check_interval: float = idle_check_interval
+        self._idle_checker_task: asyncio.Task | None = None
 
     # ------------------------------------------------------------------
     # CRUD
@@ -145,8 +150,12 @@ class SessionManager:
             raise RuntimeError(f"Session {session_id} has no PTY process")
         session.pty_process.write(text)
         session.last_activity = datetime.now(timezone.utc)
-        # Clear attention on user input (#5)
-        if session.attention_state in (AttentionState.NEEDS_INPUT, AttentionState.ERROR_SEEN):
+        # Clear attention on user input (#5, #6)
+        if session.attention_state in (
+            AttentionState.NEEDS_INPUT,
+            AttentionState.ERROR_SEEN,
+            AttentionState.IDLE,
+        ):
             self._set_attention_state(session, AttentionState.NONE)
 
     def resize_session(self, session_id: str, rows: int, cols: int) -> None:
@@ -177,6 +186,10 @@ class SessionManager:
         text = data.decode("utf-8", errors="replace")
         session.output_buffer.append_data(text)
         session.last_activity = datetime.now(timezone.utc)
+
+        # New output clears IDLE attention
+        if session.attention_state is AttentionState.IDLE:
+            self._set_attention_state(session, AttentionState.NONE)
 
         if self._on_output:
             self._on_output(session_id, text)
@@ -268,10 +281,47 @@ class SessionManager:
                 )
 
     # ------------------------------------------------------------------
+    # Idle detection (#6)
+    # ------------------------------------------------------------------
+
+    def start_idle_checker(self) -> None:
+        """Start an async periodic task that checks for idle sessions."""
+        if self._idle_checker_task is not None:
+            return
+        if self._loop is None:
+            return
+        self._idle_checker_task = self._loop.create_task(self._idle_check_loop())
+
+    def stop_idle_checker(self) -> None:
+        """Cancel the idle checker task."""
+        if self._idle_checker_task is not None:
+            self._idle_checker_task.cancel()
+            self._idle_checker_task = None
+
+    async def _idle_check_loop(self) -> None:
+        """Periodically check sessions for inactivity."""
+        while True:
+            await asyncio.sleep(self._idle_check_interval)
+            self._check_idle_sessions()
+
+    def _check_idle_sessions(self) -> None:
+        """Transition running sessions to IDLE if inactive beyond threshold."""
+        now = datetime.now(timezone.utc)
+        for session in self._sessions.values():
+            if session.process_state is not ProcessState.RUNNING:
+                continue
+            if session.attention_state is not AttentionState.NONE:
+                continue
+            elapsed = (now - session.last_activity).total_seconds()
+            if elapsed >= self._idle_threshold:
+                self._set_attention_state(session, AttentionState.IDLE)
+
+    # ------------------------------------------------------------------
     # Cleanup
     # ------------------------------------------------------------------
 
     def close_all(self) -> None:
+        self.stop_idle_checker()
         for session in list(self._sessions.values()):
             if session.pty_process:
                 session.pty_process.close()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from tame.session.manager import SessionManager
 from tame.session.output_buffer import OutputBuffer
@@ -273,3 +273,62 @@ def test_paused_gives_paused() -> None:
     manager, session, _ = _make_manager_with_session()
     session.process_state = ProcessState.PAUSED
     assert session.status is SessionState.PAUSED
+
+
+# ------------------------------------------------------------------
+# Idle detection (#6)
+# ------------------------------------------------------------------
+
+
+def test_check_idle_sessions_transitions_to_idle() -> None:
+    manager, session, transitions = _make_manager_with_session()
+    # Simulate old last_activity
+    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=400)
+    manager._check_idle_sessions()
+    assert session.status is SessionState.IDLE
+    assert (SessionState.ACTIVE, SessionState.IDLE) in transitions
+
+
+def test_check_idle_sessions_skips_non_running() -> None:
+    manager, session, transitions = _make_manager_with_session()
+    session.process_state = ProcessState.EXITED
+    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=400)
+    manager._check_idle_sessions()
+    # Should NOT transition — process already exited
+    assert session.attention_state is AttentionState.NONE
+    assert transitions == []
+
+
+def test_check_idle_sessions_skips_already_attention() -> None:
+    manager, session, transitions = _make_manager_with_session()
+    session.attention_state = AttentionState.NEEDS_INPUT
+    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=400)
+    manager._check_idle_sessions()
+    # Should NOT overwrite NEEDS_INPUT with IDLE
+    assert session.attention_state is AttentionState.NEEDS_INPUT
+    assert transitions == []
+
+
+def test_check_idle_sessions_respects_threshold() -> None:
+    manager, session, transitions = _make_manager_with_session()
+    # Activity just 10 seconds ago — below the 300s default threshold
+    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=10)
+    manager._check_idle_sessions()
+    assert session.attention_state is AttentionState.NONE
+    assert transitions == []
+
+
+def test_output_clears_idle_attention() -> None:
+    manager, session, transitions = _make_manager_with_session()
+    session.attention_state = AttentionState.IDLE
+    manager._on_session_output(session.id, b"new output\n")
+    assert session.attention_state is AttentionState.NONE
+    assert (SessionState.IDLE, SessionState.ACTIVE) in transitions
+
+
+def test_send_input_clears_idle_attention() -> None:
+    manager, session, transitions = _make_manager_with_pty_session()
+    session.attention_state = AttentionState.IDLE
+    manager.send_input(session.id, "hello\n")
+    assert session.attention_state is AttentionState.NONE
+    assert (SessionState.IDLE, SessionState.ACTIVE) in transitions
