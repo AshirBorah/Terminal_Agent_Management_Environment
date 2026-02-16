@@ -7,7 +7,7 @@ log = logging.getLogger("tame.keys")
 
 DEFAULT_KEYBINDINGS: dict[str, str] = {
     "new_session": "f2",
-    "delete_session": "ctrl+d",
+    "delete_session": "ctrl+shift+d",
     "rename_session": "f9",
     "next_session": "f4",
     "prev_session": "f3",

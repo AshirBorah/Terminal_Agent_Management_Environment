@@ -154,7 +154,7 @@ DEFAULT_CONFIG: dict = {
     },
     "keybindings": {
         "new_session": "f2",
-        "delete_session": "ctrl+d",
+        "delete_session": "ctrl+shift+d",
         "rename_session": "f9",
         "prev_session": "f3",
         "next_session": "f4",

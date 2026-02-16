@@ -166,6 +166,7 @@ class TAMEApp(App):
     # Hardcoded bindings that are not user-configurable.
     BINDINGS = [
         Binding("ctrl+c", "send_sigint", "Send SIGINT", show=False, priority=True),
+        Binding("ctrl+d", "send_eof", "Send EOF", show=False, priority=True),
         Binding("tab", "send_tab", "Tab Complete", show=False, priority=True),
     ]
 
@@ -635,6 +636,14 @@ class TAMEApp(App):
         if self._active_session_id is None:
             return
         self._session_manager.send_input(self._active_session_id, "\x03")
+
+    def action_send_eof(self) -> None:
+        """Forward Ctrl+D (EOF) to the active PTY session."""
+        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette)):
+            return
+        if self._active_session_id is None:
+            return
+        self._session_manager.send_input(self._active_session_id, "\x04")
 
     def action_send_tab(self) -> None:
         if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette)):
