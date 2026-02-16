@@ -124,14 +124,19 @@ class TAMEApp(App):
         "q": "quit",
     }
 
+    # Configurable keybindings — mapped action → (description, show, priority).
+    _BINDING_META: dict[str, tuple[str, bool, bool]] = {
+        "new_session": ("New Session", True, False),
+        "prev_session": ("Prev Session", True, False),
+        "next_session": ("Next Session", True, False),
+        "toggle_sidebar": ("Toggle Sidebar", True, False),
+        "resume_all": ("Resume All", False, False),
+        "pause_all": ("Pause All", False, False),
+        "quit": ("Quit", True, False),
+    }
+
+    # Hardcoded bindings that are not user-configurable.
     BINDINGS = [
-        Binding("f2", "new_session", "New Session", show=True),
-        Binding("f3", "prev_session", "Prev Session", show=True),
-        Binding("f4", "next_session", "Next Session", show=True),
-        Binding("f6", "toggle_sidebar", "Toggle Sidebar", show=True),
-        Binding("f7", "resume_all", "Resume All", show=False),
-        Binding("f8", "pause_all", "Pause All", show=False),
-        Binding("f12", "quit", "Quit", show=True),
         Binding("tab", "send_tab", "Tab Complete", show=False, priority=True),
         Binding(
             "shift+tab",
@@ -164,7 +169,17 @@ class TAMEApp(App):
         setup_logging(log_file=log_file, log_level=log_level)
 
         self._keybind_manager = KeybindManager(cfg.get("keybindings"))
-        self._reserved_keys = {binding.key for binding in self.BINDINGS}
+
+        # Wire configurable bindings from KeybindManager
+        for action, (desc, show, _priority) in self._BINDING_META.items():
+            key = self._keybind_manager.get_key(action)
+            if key:
+                self.bind(key, action, description=desc, show=show)
+
+        for conflict in self._keybind_manager.conflicts:
+            log.warning("Keybinding conflict: %s", conflict)
+
+        self._reserved_keys: set[str] = set(self._bindings.key_to_bindings)
         self._reserved_keys.add("ctrl+@")
         self._reserved_keys.add("ctrl+space")
 
