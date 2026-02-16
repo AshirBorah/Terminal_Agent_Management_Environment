@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+
+def get_default_patterns_flat() -> dict[str, list[str]]:
+    """Flatten structured config patterns into {category: [regex, ...]}."""
+    patterns_cfg = DEFAULT_CONFIG["patterns"]
+    result: dict[str, list[str]] = {}
+    for category in ("error", "prompt", "completion", "progress"):
+        cat_cfg = patterns_cfg.get(category, {})
+        if isinstance(cat_cfg, dict):
+            regexes = list(cat_cfg.get("regexes", []))
+            shell_regexes = list(cat_cfg.get("shell_regexes", []))
+            result[category] = regexes + shell_regexes
+    return result
+
+
 DEFAULT_CONFIG: dict = {
     "general": {
         "state_file": "~/.local/share/tame/state.db",

@@ -7,44 +7,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable
 
+from tame.config.defaults import get_default_patterns_flat
+
 from .output_buffer import OutputBuffer
 from .pattern_matcher import PatternMatcher, PatternMatch
 from .pty_process import PTYProcess
 from .session import Session
 from .state import SessionState
-
-
-# Default patterns recognised out of the box.
-DEFAULT_PATTERNS: dict[str, list[str]] = {
-    "error": [
-        r"(?i)\berror\b[:\s]",
-        r"(?i)\bfatal\b[:\s]",
-        r"Traceback \(most recent call last\)",
-        r"(?i)APIError",
-        r"(?i)rate.?limit(?:ed|ing)?(?:\s+(?:exceeded|reached|hit)|\s*[:\-])",
-        # Shell patterns
-        r"command not found",
-        r"No such file or directory",
-        r"Permission denied",
-        r"(?i)segmentation fault",
-    ],
-    "prompt": [
-        r"\[y/n\]",
-        r"\[Y/n\]",
-        r"\[yes/no\]",
-        r"(?i)approve|deny",
-        r"\?\s*$",
-    ],
-    "completion": [
-        r"(?i)\btask completed\b",
-        r"(?i)\bdone\b",
-        r"(?i)\bfinished\b",
-    ],
-    "progress": [
-        r"\d+%",
-        r"(?i)step\s+\d+\s*/\s*\d+",
-    ],
-}
 
 _INPUT_RESETS = frozenset({SessionState.ERROR, SessionState.WAITING})
 
@@ -67,13 +36,10 @@ class SessionManager:
         self._scan_partials: dict[str, str] = {}
         self._on_status_change = on_status_change
         self._on_output = on_output
-        self._patterns: dict[str, list[str]] = {
-            category: list(regexes)
-            for category, regexes in DEFAULT_PATTERNS.items()
-        }
+        base = get_default_patterns_flat()
         if patterns:
-            for category, regexes in patterns.items():
-                self._patterns[category] = list(regexes)
+            base.update({cat: list(rxs) for cat, rxs in patterns.items()})
+        self._patterns: dict[str, list[str]] = base
         self._loop: asyncio.AbstractEventLoop | None = None
 
     # ------------------------------------------------------------------

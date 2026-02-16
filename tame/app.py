@@ -196,10 +196,10 @@ class TAMEApp(App):
 
         self._active_session_id: str | None = None
 
-    def _get_patterns_from_config(self, cfg: dict) -> dict[str, list[str]] | None:
+    def _get_patterns_from_config(self, cfg: dict) -> dict[str, list[str]]:
         patterns_cfg = cfg.get("patterns", {})
         if not patterns_cfg:
-            return None
+            return {}
         result: dict[str, list[str]] = {}
         for category in ("error", "prompt", "completion", "progress"):
             cat_cfg = patterns_cfg.get(category, {})
@@ -211,7 +211,7 @@ class TAMEApp(App):
                 elif category == "prompt":
                     regexes = self._normalize_prompt_patterns(regexes)
                 result[category] = regexes + shell_regexes
-        return result or None
+        return result
 
     def _normalize_error_patterns(self, regexes: list[str]) -> list[str]:
         """Normalize known-bad legacy patterns for backward compatibility."""
