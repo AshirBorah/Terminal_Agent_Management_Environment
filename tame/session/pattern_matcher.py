@@ -20,11 +20,24 @@ class PatternMatch:
 class PatternMatcher:
     def __init__(self, patterns: dict[str, list[str]]) -> None:
         # Compile once.  Stored as category -> list[(index, compiled_re)].
+        import logging
+
+        _log = logging.getLogger("tame.pattern_matcher")
         self._compiled: dict[str, list[tuple[int, re.Pattern[str]]]] = {}
         for category, raw_patterns in patterns.items():
-            self._compiled[category] = [
-                (i, re.compile(p, re.IGNORECASE)) for i, p in enumerate(raw_patterns)
-            ]
+            compiled: list[tuple[int, re.Pattern[str]]] = []
+            for i, p in enumerate(raw_patterns):
+                try:
+                    compiled.append((i, re.compile(p, re.IGNORECASE)))
+                except re.error as exc:
+                    _log.warning(
+                        "Skipping invalid regex in [%s] pattern #%d %r: %s",
+                        category,
+                        i,
+                        p,
+                        exc,
+                    )
+            self._compiled[category] = compiled
 
     def scan(self, line: str) -> PatternMatch | None:
         for category in SCAN_ORDER:

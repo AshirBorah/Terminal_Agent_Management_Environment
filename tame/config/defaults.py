@@ -119,7 +119,7 @@ DEFAULT_CONFIG: dict = {
         "slack": {
             "enabled": False,
             "webhook_url": "",
-            "events": [],
+            "verbosity": 10,
             "sessions": [],
         },
         "toast": {

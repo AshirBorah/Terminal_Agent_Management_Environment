@@ -201,6 +201,7 @@ class SessionManager:
 
         if not data:
             # EOF — process exited.
+            self._cancel_weak_prompt_timer(session_id)
             self._scan_partials.pop(session_id, None)
             exit_code = session.pty_process.exit_code if session.pty_process else None
             session.exit_code = exit_code
@@ -280,20 +281,23 @@ class SessionManager:
             m = rx.search(cleaned)
             if m is None:
                 continue
-            if kind == "messages_used":
-                session.usage.model_name = m.group(1)
-                used = int(m.group(2))
-                total = int(m.group(3))
-                session.usage.messages_used = total - int(m.group(3)) + used
-                session.usage.quota_remaining = f"{m.group(3)} of {total}"
-                session.usage.raw_text = m.group(0)
-            elif kind == "tokens_used":
-                session.usage.tokens_used = int(m.group(1).replace(",", ""))
-                session.usage.raw_text = m.group(0)
-            elif kind == "model_name":
-                session.usage.model_name = m.group(1)
-            elif kind == "refresh_time":
-                session.usage.refresh_time = m.group(1).strip()
+            try:
+                if kind == "messages_used":
+                    session.usage.model_name = m.group(1)
+                    used = int(m.group(2))
+                    total = int(m.group(3))
+                    session.usage.messages_used = used
+                    session.usage.quota_remaining = f"{m.group(3)} of {total}"
+                    session.usage.raw_text = m.group(0)
+                elif kind == "tokens_used":
+                    session.usage.tokens_used = int(m.group(1).replace(",", ""))
+                    session.usage.raw_text = m.group(0)
+                elif kind == "model_name":
+                    session.usage.model_name = m.group(1)
+                elif kind == "refresh_time":
+                    session.usage.refresh_time = m.group(1).strip()
+            except (ValueError, IndexError):
+                continue
 
     # ------------------------------------------------------------------
     # Weak prompt timeout gating (#7)

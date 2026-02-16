@@ -50,15 +50,23 @@ uv run tame
 
 ### Key bindings
 
-| Key         | Action              |
-|-------------|---------------------|
-| F2          | New session          |
-| F3 / F4     | Prev / Next          |
-| F6          | Toggle sidebar       |
-| F7 / F8     | Resume / Pause all   |
-| Ctrl+Space  | Command palette      |
-| F12         | Quit                 |
-| Shift+Tab   | Focus search         |
+| Key              | Action              |
+|------------------|---------------------|
+| F2               | New session          |
+| F3 / F4          | Prev / Next session  |
+| F6               | Toggle sidebar       |
+| F7 / F8          | Resume / Pause all   |
+| F9               | Rename session       |
+| Ctrl+Shift+D     | Delete session       |
+| Ctrl+Space       | Command palette      |
+| Ctrl+C           | Send SIGINT to PTY   |
+| Ctrl+D           | Send EOF to PTY      |
+| Ctrl+L           | Focus input          |
+| Ctrl+T           | Cycle theme          |
+| Alt+1 … Alt+9    | Jump to session N    |
+| Shift+Tab        | Focus search         |
+| Tab              | Tab-complete in PTY  |
+| F12              | Quit                 |
 
 All other keystrokes are forwarded to the active session's PTY. Key bindings are configurable via `[keybindings]` in config.
 
@@ -69,13 +77,21 @@ Press `Ctrl+Space` then one of:
 | Key | Action              |
 |-----|---------------------|
 | c   | New session          |
+| d   | Delete session       |
+| e   | Export session log   |
+| h   | Input history picker |
+| m   | Rename session       |
 | n   | Next session         |
 | p   | Previous session     |
-| k   | Kill session         |
 | s   | Toggle sidebar       |
+| f   | Focus search         |
+| i   | Focus input          |
+| t   | Cycle theme          |
+| u   | Check usage          |
 | r   | Resume all           |
 | z   | Pause all            |
 | x   | Clear notifications  |
+| 1–9 | Jump to session N    |
 | q   | Quit                 |
 
 ## Configuration
@@ -97,7 +113,7 @@ regexes = ['(?i)error:', '(?i)fatal:', 'Traceback \\(most recent call last\\)']
 shell_regexes = ['command not found', 'No such file or directory']
 
 [notifications]
-enabled = true
+enabled = true                           # master kill-switch for all channels
 [notifications.dnd]
 enabled = false
 start = ""
@@ -108,6 +124,10 @@ enabled = true
 enabled = true
 [notifications.toast]
 enabled = true
+[notifications.slack]
+enabled = false
+webhook_url = ""
+verbosity = 10                           # 0=off, 10=errors+input, 50=+completed, 100=all
 
 [keybindings]
 new_session = "f2"

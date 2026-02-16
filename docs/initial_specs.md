@@ -1,8 +1,8 @@
-# Linux Agent Manager (LAM) — Full Technical Specification
+# Terminal Agent Management Environment (TAME) — Full Technical Specification
 
 ## 1. Project Overview
 
-**Name:** Linux Agent Manager (LAM)
+**Name:** Terminal Agent Management Environment (TAME)
 **Purpose:** An intelligent terminal multiplexer for managing multiple parallel AI agent sessions with smart monitoring and notifications. Think tmux, but aware that AI agents are running and that they sometimes need your attention.
 **Language:** Python 3.11+
 **UI Framework:** Textual (TUI)
@@ -10,7 +10,7 @@
 
 ### 1.1 Core Concept
 
-LAM does NOT launch or orchestrate agents. Users create terminal sessions, get a shell, and run whatever CLI agent they want (`claude`, `codex`, `aider`, `gemini`, a custom script, etc.). LAM monitors the PTY output of each session using configurable regex patterns and:
+TAME does NOT launch or orchestrate agents. Users create terminal sessions, get a shell, and run whatever CLI agent they want (`claude`, `codex`, `aider`, `gemini`, a custom script, etc.). TAME monitors the PTY output of each session using configurable regex patterns and:
 
 - Detects when an agent is **waiting for input** (y/n prompts, approval requests, questions)
 - Detects when an agent has **errored** (exit codes, error patterns)
@@ -18,7 +18,7 @@ LAM does NOT launch or orchestrate agents. Users create terminal sessions, get a
 - Detects when a session has gone **idle** (no output for a configurable duration)
 - **Notifies the user** via visual highlights, desktop notifications, audio alerts, and in-app toasts
 
-This is the key differentiator from tmux: LAM understands that the processes in its panes are AI agents that periodically need human attention, and it helps you manage that attention across many concurrent sessions.
+This is the key differentiator from tmux: TAME understands that the processes in its panes are AI agents that periodically need human attention, and it helps you manage that attention across many concurrent sessions.
 
 ### 1.2 Design Principles
 
@@ -34,7 +34,7 @@ This is the key differentiator from tmux: LAM understands that the processes in 
 
 ### 2.1 Session Management
 
-A **session** in LAM is a PTY-backed shell. When you create a session, you get an interactive shell where you can type commands, run agents, or do anything you'd do in a terminal.
+A **session** in TAME is a PTY-backed shell. When you create a session, you get an interactive shell where you can type commands, run agents, or do anything you'd do in a terminal.
 
 **Session List (Left Sidebar)**
 - Clickable session entries with selection highlight
@@ -82,7 +82,7 @@ A **session** in LAM is a PTY-backed shell. When you create a session, you get a
 
 ### 2.4 Pattern Matching (Output Monitoring)
 
-LAM monitors each session's PTY output line-by-line using configurable regex patterns. Patterns are organized by detection category, tested in priority order:
+TAME monitors each session's PTY output line-by-line using configurable regex patterns. Patterns are organized by detection category, tested in priority order:
 
 **Priority order:** error → prompt → completion → progress
 
@@ -134,7 +134,7 @@ regexes = [
 - **Progress match** → progress indicator shown in sidebar (optional)
 - **No output for `idle_threshold_seconds`** → session status becomes IDLE
 
-**Idle-timeout heuristic:** If no output arrives for 3 seconds and there is a partial line in the output buffer (no trailing newline), LAM re-scans the partial line for prompt patterns. Many agents print prompts without a trailing newline, so this catches cases where readline-based detection misses the prompt.
+**Idle-timeout heuristic:** If no output arrives for 3 seconds and there is a partial line in the output buffer (no trailing newline), TAME re-scans the partial line for prompt patterns. Many agents print prompts without a trailing newline, so this catches cases where readline-based detection misses the prompt.
 
 Users can override or extend patterns in their config file. Per-session pattern overrides are also supported.
 
@@ -197,7 +197,7 @@ Themes are implemented as Textual CSS files (`.tcss`). Each built-in theme is a 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Linux Agent Manager (LAM)                     │
+│            Terminal Agent Management Environment (TAME)           │
 │                                                                 │
 │  ┌─────────────┐   ┌──────────────┐   ┌────────────────────┐   │
 │  │ ConfigManager│   │ ThemeManager │   │  KeybindManager    │   │
@@ -205,7 +205,7 @@ Themes are implemented as Textual CSS files (`.tcss`). Each built-in theme is a 
 │  └──────┬──────┘   └──────────────┘   └────────────────────┘   │
 │         │                                                       │
 │  ┌──────▼──────────────────────────────────────────────────┐    │
-│  │                    LAMApp (Textual App)                   │   │
+│  │                    TAMEApp (Textual App)                  │   │
 │  │  ┌────────────┐ ┌──────────────────┐ ┌──────────────┐   │   │
 │  │  │ HeaderBar  │ │  SessionViewer   │ │  StatusBar   │   │   │
 │  │  ├────────────┤ │  (ANSI output)   │ └──────────────┘   │   │
@@ -239,9 +239,9 @@ Themes are implemented as Textual CSS files (`.tcss`). Each built-in theme is a 
 
 ### 3.2 Component Descriptions
 
-**ConfigManager** — loads `~/.config/lam/config.toml`, validates schema, provides typed access to all settings. Creates default config on first run.
+**ConfigManager** — loads `~/.config/tame/config.toml`, validates schema, provides typed access to all settings. Creates default config on first run.
 
-**LAMApp** — the Textual `App` subclass. Composition root that wires all components. Handles global keybindings and routes custom Messages between widgets.
+**TAMEApp** — the Textual `App` subclass. Composition root that wires all components. Handles global keybindings and routes custom Messages between widgets.
 
 **SessionManager** — owns all `Session` objects. Handles creation, deletion, batch operations, and the monitoring loop. Posts Textual Messages when sessions change state.
 
@@ -305,7 +305,7 @@ The combined stdout/stderr stream is acceptable because: (a) agents interleave t
 
 ### 3.5 Async I/O Architecture
 
-The Textual event loop is asyncio-based. LAM integrates PTY reading via `loop.add_reader(master_fd, callback)` which uses the kernel's `epoll` — zero-thread, zero-overhead monitoring of all session file descriptors from a single event loop.
+The Textual event loop is asyncio-based. TAME integrates PTY reading via `loop.add_reader(master_fd, callback)` which uses the kernel's `epoll` — zero-thread, zero-overhead monitoring of all session file descriptors from a single event loop.
 
 ```python
 # Core I/O bridge (simplified)
@@ -372,7 +372,7 @@ Each session's shell process follows this state machine:
 ```
 Terminal (minimum 80x24)
 +==============================================================================+
-│ LAM  Linux Agent Manager          [▶ Resume All] [⏸ Pause All]   CPU:12% 2.1G│
+│ TAME  Terminal Agent Manager       [▶ Resume All] [⏸ Pause All]   CPU:12% 2.1G│
 +========================+=====================================================+
 │  [🔍 Search...        ]│  Session: "api-refactor"                             │
 │  ───────────────────── │  Dir: ~/projects/api │ PID: 12345 │ 14m ago          │
@@ -397,7 +397,7 @@ Terminal (minimum 80x24)
 ### 4.2 Widget Hierarchy
 
 ```
-LAMApp
+TAMEApp
 ├── HeaderBar              # Title, global control buttons, resource indicators
 │   ├── Static (title)
 │   ├── Button (Resume All)
@@ -450,21 +450,21 @@ Session persistence is handled via **tmux integration**. When `sessions.start_in
 
 ### 6.1 Config File Location
 
-`~/.config/lam/config.toml`
+`~/.config/tame/config.toml`
 
-Created with defaults on first run. LAM also respects `$XDG_CONFIG_HOME/lam/config.toml`.
+Created with defaults on first run. TAME also respects `$XDG_CONFIG_HOME/tame/config.toml`.
 
 ### 6.2 Complete Config Schema
 
 ```toml
 # =============================================================================
-# Linux Agent Manager (LAM) Configuration
+# Terminal Agent Management Environment (TAME) Configuration
 # =============================================================================
 
 # ── General ──────────────────────────────────────────────────────────────────
 
 [general]
-log_file = "~/.local/share/lam/lam.log"         # Log file (empty = stderr only)
+log_file = "~/.local/share/tame/tame.log"        # Log file (empty = stderr only)
 log_level = "INFO"                               # DEBUG, INFO, WARNING, ERROR
 max_buffer_lines = 10000                         # Max output lines per session
 autosave_interval_seconds = 60                   # 0 = disabled
@@ -685,10 +685,10 @@ All keybindings are customizable via the `[keybindings]` section in config.toml.
 ## 8. Project Structure
 
 ```
-lam/
+tame/
 ├── __init__.py
 ├── __main__.py                    # Entry point, CLI arg parsing
-├── app.py                         # LAMApp (Textual App subclass)
+├── app.py                         # TAMEApp (Textual App subclass)
 │
 ├── config/
 │   ├── __init__.py
@@ -834,7 +834,7 @@ audio = [
 ]
 
 [project.scripts]
-lam = "lam.__main__:main"
+tame = "tame.__main__:main"
 ```
 
 ---
@@ -892,16 +892,16 @@ cd linux-agent-manager
 pip install -e .
 
 # Run
-lam
+tame
 
 # Or with options
-lam --config ~/.config/lam/config.toml
-lam --theme dracula
-lam --verbose
+tame --config ~/.config/tame/config.toml
+tame --theme dracula
+tame --verbose
 ```
 
 **First run experience:**
-1. LAM creates `~/.config/lam/config.toml` with defaults
+1. TAME creates `~/.config/tame/config.toml` with defaults
 2. Empty sidebar with "[+ New Session]" button
 3. Press Ctrl+N → enter session name and working directory → shell spawns
 4. Type your agent command (e.g., `claude`, `codex`, `aider`) in the session
@@ -942,12 +942,12 @@ lam --verbose
 After implementing, verify the refined specs work by:
 
 1. `pip install -e .` — install in development mode
-2. `lam` — app launches with empty sidebar
+2. `tame` — app launches with empty sidebar
 3. Create a session → shell spawns in chosen directory
 4. Run `echo "Do you want to proceed? [y/n]"` → verify pattern match triggers WAITING status and notification
 5. Type `y` in input area → verify it's sent to the shell
 6. Run `exit 1` in a session → verify ERROR status
 7. Run `exit 0` → verify DONE status
-8. Check `~/.config/lam/config.toml` was created
+8. Check `~/.config/tame/config.toml` was created
 9. Restart TAME → verify tmux sessions are rediscovered and restored
 10. Test keybindings: Ctrl+N, Alt+1..9, Ctrl+B, Ctrl+Q

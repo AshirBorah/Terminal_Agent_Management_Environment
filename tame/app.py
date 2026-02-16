@@ -567,16 +567,16 @@ class TAMEApp(App):
         if session_id is None:
             return
 
+        try:
+            self._session_manager.delete_session(session_id)
+        except KeyError:
+            pass
+
         sidebar = self.query_one(SessionSidebar)
         viewer = self.query_one(SessionViewer)
 
         sidebar.remove_session(session_id)
         viewer.remove_session(session_id)
-
-        try:
-            self._session_manager.delete_session(session_id)
-        except KeyError:
-            pass
 
         # Switch to the next available session or clear
         sessions = self._session_manager.list_sessions()

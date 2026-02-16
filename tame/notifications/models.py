@@ -26,6 +26,15 @@ EVENT_PRIORITY: dict[EventType, Priority] = {
     EventType.SESSION_IDLE: Priority.LOW,
 }
 
+# Numeric verbosity thresholds for Slack filtering.
+# A SlackNotifier with verbosity=V forwards events whose level <= V.
+EVENT_VERBOSITY: dict[EventType, int] = {
+    EventType.ERROR: 10,
+    EventType.INPUT_NEEDED: 10,
+    EventType.COMPLETED: 50,
+    EventType.SESSION_IDLE: 100,
+}
+
 
 @dataclass
 class NotificationEvent:

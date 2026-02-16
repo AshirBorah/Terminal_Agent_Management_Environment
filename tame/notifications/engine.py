@@ -69,11 +69,13 @@ class NotificationEngine:
             max_size=history_cfg.get("max_size", 500),
         )
 
+        self._enabled: bool = config.get("enabled", True)
+
         slack_cfg = config.get("slack", {})
         self._slack = SlackNotifier(
             enabled=slack_cfg.get("enabled", False),
             webhook_url=slack_cfg.get("webhook_url", ""),
-            events=slack_cfg.get("events"),
+            verbosity=int(slack_cfg.get("verbosity", 10)),
             sessions=slack_cfg.get("sessions"),
         )
 
@@ -111,6 +113,9 @@ class NotificationEngine:
         )
 
         self._history.add(event)
+
+        if not self._enabled:
+            return event
 
         if self._is_dnd():
             log.debug("DND active — suppressing notification channels")

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from .models import EventType, NotificationEvent
+from .models import EVENT_VERBOSITY, EventType, NotificationEvent
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class SlackNotifier:
     Config (in ``notifications.slack``):
         enabled: bool (default False)
         webhook_url: str — Slack Incoming Webhook URL
-        events: list[str] — event types to forward (default: all)
+        verbosity: int — numeric level (0=off, 10=errors/input, 50=+completed, 100=all)
         sessions: list[str] — session name patterns to forward
             (empty = all sessions, glob-like matching)
     """
@@ -41,30 +41,29 @@ class SlackNotifier:
         self,
         enabled: bool = False,
         webhook_url: str = "",
-        events: list[str] | None = None,
+        verbosity: int = 10,
         sessions: list[str] | None = None,
     ) -> None:
         self._enabled = enabled and bool(webhook_url)
         self._webhook_url = webhook_url
-        # Which event types to send (empty = all)
-        self._allowed_events: set[str] = set(events) if events else set()
+        self._verbosity = verbosity
         # Which session names to send for (empty = all)
         self._allowed_sessions: set[str] = set(sessions) if sessions else set()
+        self._pool = ThreadPoolExecutor(max_workers=2)
 
     def notify(self, event: NotificationEvent) -> None:
         if not self._enabled:
             return
-        # Event type filter
-        if self._allowed_events and event.event_type.value not in self._allowed_events:
+        # Verbosity filter
+        event_level = EVENT_VERBOSITY.get(event.event_type, 100)
+        if event_level > self._verbosity:
             return
         # Session name filter
         if self._allowed_sessions and event.session_name not in self._allowed_sessions:
             return
 
         payload = self._build_payload(event)
-        # Fire and forget in a background thread to avoid blocking the event loop
-        thread = threading.Thread(target=self._post, args=(payload,), daemon=True)
-        thread.start()
+        self._pool.submit(self._post, payload)
 
     def _build_payload(self, event: NotificationEvent) -> dict[str, Any]:
         emoji = _EMOJI.get(event.event_type, ":bell:")

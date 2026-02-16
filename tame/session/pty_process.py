@@ -82,7 +82,16 @@ class PTYProcess:
                 if self._on_data:
                     self._on_data(b"")
                 return
-            raise
+            # Any other OSError (e.g. EBADF after close) — log and treat as EOF.
+            import logging
+
+            logging.getLogger("tame.pty").warning(
+                "Unexpected OSError on PTY read (errno=%s): %s", exc.errno, exc
+            )
+            self._detach_reader()
+            if self._on_data:
+                self._on_data(b"")
+            return
         if not data:
             self._detach_reader()
         if self._on_data:
@@ -133,12 +142,15 @@ class PTYProcess:
     def terminate(self, kill_timeout: float = 3.0) -> None:
         if self._process is None:
             return
-        self.send_signal(signal.SIGTERM)
         try:
-            self._process.wait(timeout=kill_timeout)
-        except subprocess.TimeoutExpired:
-            self.send_signal(signal.SIGKILL)
-            self._process.wait(timeout=5.0)
+            self.send_signal(signal.SIGTERM)
+            try:
+                self._process.wait(timeout=kill_timeout)
+            except subprocess.TimeoutExpired:
+                self.send_signal(signal.SIGKILL)
+                self._process.wait(timeout=5.0)
+        except Exception:
+            pass  # Process already dead — nothing to do.
 
     # ------------------------------------------------------------------
     # Properties
