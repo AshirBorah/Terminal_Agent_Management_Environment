@@ -81,7 +81,7 @@ def test_load_merges_user_config(tmp_path: object) -> None:
     assert cfg["sessions"]["auto_resume"] is True
 
     # Preserved defaults
-    assert cfg["general"]["state_file"] == "~/.local/share/tame/state.db"
+    assert cfg["general"]["log_file"] == "~/.local/share/tame/tame.log"
     assert cfg["sessions"]["idle_threshold_seconds"] == 300
     assert "keybindings" in cfg
     assert cfg["keybindings"]["quit"] == "f12"

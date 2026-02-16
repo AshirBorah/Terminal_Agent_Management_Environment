@@ -16,12 +16,9 @@ def get_default_patterns_flat() -> dict[str, list[str]]:
 
 DEFAULT_CONFIG: dict = {
     "general": {
-        "state_file": "~/.local/share/tame/state.db",
         "log_file": "~/.local/share/tame/tame.log",
         "log_level": "INFO",
         "max_buffer_lines": 10000,
-        "autosave_interval_seconds": 60,
-        "resource_poll_seconds": 5,
     },
     "sessions": {
         "auto_resume": False,

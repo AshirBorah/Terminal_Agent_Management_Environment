@@ -9,8 +9,9 @@ TAME does **not** launch or orchestrate agents. You create PTY-backed shell sess
 - **Session management** — create, switch, pause, resume, and delete terminal sessions from a sidebar
 - **Pattern-based status detection** — configurable regexes detect prompts, errors, completion, and progress
 - **Smart notifications** — desktop notifications, audio alerts, in-app toasts, and sidebar flashing when a session needs attention
-- **Tmux integration** — optionally back each session with a tmux session for persistence across restarts
+- **Tmux-first architecture** — each session is backed by a tmux session for persistence across restarts; TAME auto-restores on startup
 - **Keystroke passthrough** — full keyboard input forwarding (arrow keys, Ctrl sequences, Alt combos, Tab) to the active PTY
+- **Configurable keybindings** — override any key binding via `~/.config/tame/config.toml`
 - **TOML configuration** — `~/.config/tame/config.toml` with sensible defaults that work out of the box
 
 ### Status indicators
@@ -29,7 +30,7 @@ TAME does **not** launch or orchestrate agents. You create PTY-backed shell sess
 - Python 3.11+
 - POSIX (Linux, macOS)
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- tmux (optional, for session persistence)
+- tmux (recommended — enables session persistence and restore)
 
 ## Installation
 
@@ -57,7 +58,7 @@ uv run tame
 | F12         | Quit                 |
 | Shift+Tab   | Focus search         |
 
-All other keystrokes are forwarded to the active session's PTY.
+All other keystrokes are forwarded to the active session's PTY. Key bindings are configurable via `[keybindings]` in config.
 
 #### Command palette keys
 
@@ -82,20 +83,39 @@ On first run, TAME creates `~/.config/tame/config.toml` with defaults. Key secti
 ```toml
 [sessions]
 default_working_directory = "~"
-start_in_tmux = false
-restore_tmux_sessions_on_startup = true
+start_in_tmux = true                     # back each session with a tmux session
+restore_tmux_sessions_on_startup = true  # auto-restore on launch
+tmux_session_prefix = "tame"
 
 [patterns.prompt]
-regexes = ['\\[y/n\\]', '\\[Y/n\\]', '\\?\\s*$']
+regexes = ['\\[y/n\\]', '\\[Y/n\\]', '\\[yes/no\\]']
 
 [patterns.error]
-regexes = ['(?i)\\berror\\b[:\\s]', 'Traceback \\(most recent call last\\)']
+regexes = ['(?i)error:', '(?i)fatal:', 'Traceback \\(most recent call last\\)']
+shell_regexes = ['command not found', 'No such file or directory']
 
 [notifications]
-desktop = true
-audio = false
-toast = true
+enabled = true
+[notifications.dnd]
+enabled = false
+start = ""
+end = ""
+[notifications.desktop]
+enabled = true
+[notifications.audio]
+enabled = true
+[notifications.toast]
+enabled = true
+
+[keybindings]
+new_session = "f2"
+prev_session = "f3"
+next_session = "f4"
+toggle_sidebar = "f6"
+quit = "f12"
 ```
+
+See `tame/config/defaults.py` for the full default configuration.
 
 ## Development
 
@@ -118,10 +138,18 @@ tame/
 ├── ui/themes/                # ThemeManager + .tcss files
 ├── ui/keys/                  # KeybindManager
 ├── notifications/            # NotificationEngine, desktop, audio, toast
-├── persistence/              # SQLite StateStore
 └── utils/                    # Logging
 tests/                        # pytest tests mirroring src structure
 ```
+
+### Planned (v2)
+
+- Docker container sessions
+- VT100 emulation improvements
+- Plugin system
+- Web UI
+- SQLite state persistence
+- Resource monitoring (CPU/memory per session)
 
 ## License
 
