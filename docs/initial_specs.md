@@ -234,10 +234,6 @@ Themes are implemented as Textual CSS files (`.tcss`). Each built-in theme is a 
 │  │  DesktopNotifier │ AudioNotifier │ ToastOverlay │ History │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              StateStore (SQLite)                           │   │
-│  │  session metadata │ output snapshots │ scroll positions   │   │
-│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -257,8 +253,6 @@ Themes are implemented as Textual CSS files (`.tcss`). Each built-in theme is a 
 - Session metadata (name, working dir, status, timestamps)
 
 **NotificationEngine** — central dispatcher. Receives events from SessionManager, checks DND/routing config, dispatches to enabled channels.
-
-**StateStore** — SQLite database at `~/.local/share/lam/state.db`. Persists session metadata, output buffer snapshots (gzipped), and scroll positions. Auto-saves periodically and on exit.
 
 **ThemeManager** — loads `.tcss` files, applies them to the Textual app, supports runtime switching.
 
@@ -448,33 +442,7 @@ The SessionViewer widget renders PTY output with ANSI escape code support. It us
 
 ## 5. Session State Persistence
 
-### 5.1 What Gets Persisted (SQLite)
-
-| Data | Persisted? | Notes |
-|------|-----------|-------|
-| Session metadata | Yes | name, working dir, adapter hint, created_at |
-| Output buffer | Yes | gzip-compressed, last N lines |
-| Scroll position | Yes | restored when switching back to session |
-| Session status (before exit) | Yes | for auto-resume decision |
-| Running process | **No** | processes cannot survive app restart |
-| PTY state | **No** | terminal state is lost |
-| Input history | Yes | per-session command history |
-| Notification history | Yes | ring buffer of last 500 events |
-
-### 5.2 Auto-Save Behavior
-
-- **Periodic:** every 60 seconds (configurable)
-- **On session change:** when user switches sessions
-- **On exit:** full state dump before shutdown
-
-### 5.3 Session Restore on Startup
-
-When LAM starts:
-1. Load persisted sessions from SQLite
-2. Display them in the sidebar with status `IDLE` (processes are gone)
-3. Show persisted output buffer when user selects a session
-4. If `config.sessions.auto_resume = true`, prompt: "Restore N previously active sessions?"
-5. Restored sessions get a fresh shell in the same working directory (the agent process itself is not restored — the user re-runs their command)
+Session persistence is handled via **tmux integration**. When `sessions.start_in_tmux = true` (default), each session runs inside a tmux session prefixed with `tame-`. Sessions survive TAME restarts and are automatically rediscovered on startup via `restore_tmux_sessions_on_startup`.
 
 ---
 
@@ -496,7 +464,6 @@ Created with defaults on first run. LAM also respects `$XDG_CONFIG_HOME/lam/conf
 # ── General ──────────────────────────────────────────────────────────────────
 
 [general]
-state_file = "~/.local/share/lam/state.db"     # SQLite state database
 log_file = "~/.local/share/lam/lam.log"         # Log file (empty = stderr only)
 log_level = "INFO"                               # DEBUG, INFO, WARNING, ERROR
 max_buffer_lines = 10000                         # Max output lines per session
@@ -774,10 +741,6 @@ lam/
 │   ├── audio.py                   # AudioNotifier (pygame → simpleaudio → bell)
 │   └── history.py                 # NotificationHistory ring buffer
 │
-├── persistence/
-│   ├── __init__.py
-│   └── state_store.py             # SQLite state persistence
-│
 └── utils/
     ├── __init__.py
     └── logger.py                  # Logging setup
@@ -895,10 +858,9 @@ lam = "lam.__main__:main"
 - [ ] In-app toast overlay
 
 ### Phase 3: Persistence & Config (Week 5)
-- [ ] TOML config loading with defaults
-- [ ] SQLite state persistence (session metadata, output snapshots)
-- [ ] Auto-save and restore on startup
-- [ ] Keybinding system with conflict detection
+- [x] TOML config loading with defaults
+- [x] Tmux-based session persistence and auto-restore on startup
+- [x] Keybinding system with conflict detection
 
 ### Phase 4: Polish (Week 6)
 - [ ] Theme system (8 built-in themes, TCSS-based)
@@ -961,7 +923,7 @@ lam --verbose
 ### Integration Tests
 - `test_pty_process.py` — spawn shell, write input, read output, signal handling
 - `test_session_manager.py` — create/delete sessions, batch operations
-- `test_state_store.py` — persist and restore sessions, output buffers
+- `test_tmux_restore.py` — tmux session discovery and restore
 
 ### End-to-End Tests (Textual Pilot)
 - `test_app.py` — use Textual's `pilot` testing framework to simulate:
@@ -987,5 +949,5 @@ After implementing, verify the refined specs work by:
 6. Run `exit 1` in a session → verify ERROR status
 7. Run `exit 0` → verify DONE status
 8. Check `~/.config/lam/config.toml` was created
-9. Restart LAM → verify sessions are restored from SQLite
+9. Restart TAME → verify tmux sessions are rediscovered and restored
 10. Test keybindings: Ctrl+N, Alt+1..9, Ctrl+B, Ctrl+Q
