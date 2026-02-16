@@ -8,16 +8,19 @@ from textual.widgets import Label
 
 COMMAND_ENTRIES: list[tuple[str, str, str]] = [
     ("c", "new_session", "New Session"),
+    ("d", "delete_session", "Delete Session"),
+    ("m", "rename_session", "Rename Session"),
     ("n", "next_session", "Next Session"),
     ("p", "prev_session", "Previous Session"),
-    ("d", "delete_session", "Delete Session"),
+    ("1-9", "session_1", "Jump to Session [1-9]"),
     ("s", "toggle_sidebar", "Toggle Sidebar"),
+    ("f", "focus_search", "Focus Search"),
+    ("i", "focus_input", "Focus Input"),
+    ("t", "toggle_theme", "Cycle Theme"),
     ("r", "resume_all", "Resume All"),
     ("z", "pause_all", "Pause All"),
-    ("t", "toggle_theme", "Cycle Theme"),
     ("u", "check_usage", "Check Usage"),
     ("x", "clear_notifications", "Clear Notifications"),
-    ("m", "rename_session", "Rename Session"),
     ("q", "quit", "Quit"),
 ]
 
@@ -78,5 +81,8 @@ class CommandPalette(ModalScreen[str | None]):
             self.dismiss(None)
             return
         char = event.character
+        if char and char in "123456789":
+            self.dismiss(f"session_{char}")
+            return
         if char and char in self._key_map:
             self.dismiss(self._key_map[char])

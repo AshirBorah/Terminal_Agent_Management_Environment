@@ -113,15 +113,27 @@ class TAMEApp(App):
 
     COMMAND_MODE_MAP: dict[str, str] = {
         "c": "new_session",
+        "d": "delete_session",
+        "m": "rename_session",
         "n": "next_session",
         "p": "prev_session",
-        "d": "delete_session",
+        "1": "session_1",
+        "2": "session_2",
+        "3": "session_3",
+        "4": "session_4",
+        "5": "session_5",
+        "6": "session_6",
+        "7": "session_7",
+        "8": "session_8",
+        "9": "session_9",
         "s": "toggle_sidebar",
+        "f": "focus_search",
+        "i": "focus_input",
+        "t": "toggle_theme",
         "r": "resume_all",
         "z": "pause_all",
         "u": "check_usage",
         "x": "clear_notifications",
-        "m": "rename_session",
         "q": "quit",
     }
 
@@ -153,6 +165,7 @@ class TAMEApp(App):
 
     # Hardcoded bindings that are not user-configurable.
     BINDINGS = [
+        Binding("ctrl+c", "send_sigint", "Send SIGINT", show=False, priority=True),
         Binding("tab", "send_tab", "Tab Complete", show=False, priority=True),
     ]
 
@@ -614,6 +627,14 @@ class TAMEApp(App):
                 toast.show_toast(title="Usage Info", message=msg)
             except Exception:
                 pass
+
+    def action_send_sigint(self) -> None:
+        """Forward Ctrl+C as SIGINT to the active PTY session."""
+        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette)):
+            return
+        if self._active_session_id is None:
+            return
+        self._session_manager.send_input(self._active_session_id, "\x03")
 
     def action_send_tab(self) -> None:
         if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette)):
