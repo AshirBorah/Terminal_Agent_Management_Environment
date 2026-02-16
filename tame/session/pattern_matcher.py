@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 
 # Priority order for scanning — earlier categories win on ties.
-SCAN_ORDER: list[str] = ["error", "prompt", "completion", "progress"]
+# "weak_prompt" is checked after "prompt" so strong prompts take precedence.
+SCAN_ORDER: list[str] = ["error", "prompt", "weak_prompt", "completion", "progress"]
 
 
 @dataclass(frozen=True, slots=True)

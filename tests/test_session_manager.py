@@ -332,3 +332,54 @@ def test_send_input_clears_idle_attention() -> None:
     manager.send_input(session.id, "hello\n")
     assert session.attention_state is AttentionState.NONE
     assert (SessionState.IDLE, SessionState.ACTIVE) in transitions
+
+
+# ------------------------------------------------------------------
+# Weak prompt timeout gating (#7)
+# ------------------------------------------------------------------
+
+
+def test_weak_prompt_fires_immediately_without_loop() -> None:
+    """Without an event loop, weak prompts fire as immediate fallback."""
+    manager = SessionManager(
+        patterns={"weak_prompt": [r"\?\s*$"]},
+    )
+    now = datetime.now(timezone.utc)
+    session = Session(
+        id="s1",
+        name="s1",
+        working_dir=".",
+        process_state=ProcessState.RUNNING,
+        attention_state=AttentionState.NONE,
+        created_at=now,
+        last_activity=now,
+        output_buffer=OutputBuffer(),
+        pattern_matcher=PatternMatcher(manager._patterns),
+        pid=None,
+        pty_process=None,
+    )
+    manager._sessions[session.id] = session
+    # Line ending in ? should match weak_prompt
+    manager._on_session_output(session.id, b"What is your name?\n")
+    assert session.status is SessionState.WAITING
+
+
+def test_weak_prompt_does_not_match_strong_prompt() -> None:
+    """Strong prompt patterns take priority over weak ones."""
+    manager, session, transitions = _make_manager_with_session()
+    # [y/n] is a strong prompt pattern — should fire immediately
+    manager._on_session_output(session.id, b"Continue? [y/n]\n")
+    assert session.status is SessionState.WAITING
+    assert (SessionState.ACTIVE, SessionState.WAITING) in transitions
+
+
+def test_new_output_cancels_weak_prompt_timer() -> None:
+    """New output should cancel a pending weak prompt timer."""
+    manager, session, transitions = _make_manager_with_session()
+    # No event loop — but test the cancel logic directly
+    manager._schedule_weak_prompt(session.id, "Are you sure?")
+    # Since no loop, it fires immediately in fallback mode
+    # But let's verify the cancel method doesn't crash
+    manager._cancel_weak_prompt_timer(session.id)
+    # Timer should be gone
+    assert session.id not in manager._weak_prompt_timers

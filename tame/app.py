@@ -186,11 +186,14 @@ class TAMEApp(App):
 
         sessions_cfg = cfg.get("sessions", {})
         idle_threshold = float(sessions_cfg.get("idle_threshold_seconds", 300))
+        patterns_cfg = cfg.get("patterns", {})
+        idle_prompt_timeout = float(patterns_cfg.get("idle_prompt_timeout", 3.0))
         self._session_manager = SessionManager(
             on_status_change=self._handle_status_change,
             on_output=self._handle_pty_output,
             patterns=self._get_patterns_from_config(cfg),
             idle_threshold_seconds=idle_threshold,
+            idle_prompt_timeout=idle_prompt_timeout,
         )
         default_working_dir = str(sessions_cfg.get("default_working_directory", "")).strip()
         self._default_working_dir = os.path.expanduser(default_working_dir) if default_working_dir else os.path.expanduser("~")

@@ -31,6 +31,7 @@ class SessionManager:
         patterns: dict[str, list[str]] | None = None,
         idle_threshold_seconds: float = 300.0,
         idle_check_interval: float = 30.0,
+        idle_prompt_timeout: float = 3.0,
     ) -> None:
         self._sessions: dict[str, Session] = {}
         self._scan_partials: dict[str, str] = {}
@@ -43,7 +44,10 @@ class SessionManager:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._idle_threshold: float = idle_threshold_seconds
         self._idle_check_interval: float = idle_check_interval
+        self._idle_prompt_timeout: float = idle_prompt_timeout
         self._idle_checker_task: asyncio.Task | None = None
+        # Pending weak prompt timers — session_id -> asyncio.TimerHandle
+        self._weak_prompt_timers: dict[str, asyncio.TimerHandle] = {}
 
     # ------------------------------------------------------------------
     # CRUD
@@ -191,6 +195,9 @@ class SessionManager:
         if session.attention_state is AttentionState.IDLE:
             self._set_attention_state(session, AttentionState.NONE)
 
+        # Cancel any pending weak prompt timer — new output arrived (#7)
+        self._cancel_weak_prompt_timer(session_id)
+
         if self._on_output:
             self._on_output(session_id, text)
 
@@ -212,6 +219,8 @@ class SessionManager:
                 self._set_attention_state(session, AttentionState.ERROR_SEEN, line.strip())
             elif match.category == "prompt":
                 self._set_attention_state(session, AttentionState.NEEDS_INPUT, line.strip())
+            elif match.category == "weak_prompt":
+                self._schedule_weak_prompt(session_id, line.strip())
             elif match.category == "completion":
                 self._set_process_state(session, ProcessState.EXITED, line.strip())
             # progress is informational — no status change
@@ -222,6 +231,52 @@ class SessionManager:
             partial_match = session.pattern_matcher.scan(partial)
             if partial_match and partial_match.category == "prompt":
                 self._set_attention_state(session, AttentionState.NEEDS_INPUT, partial.strip())
+            elif partial_match and partial_match.category == "weak_prompt":
+                self._schedule_weak_prompt(session_id, partial.strip())
+
+    # ------------------------------------------------------------------
+    # Weak prompt timeout gating (#7)
+    # ------------------------------------------------------------------
+
+    def _schedule_weak_prompt(self, session_id: str, matched_line: str) -> None:
+        """Schedule a delayed NEEDS_INPUT transition for a weak prompt match.
+
+        If no new output arrives within ``_idle_prompt_timeout`` seconds the
+        session will transition to WAITING.  Any new output cancels the timer.
+        """
+        self._cancel_weak_prompt_timer(session_id)
+        if self._loop is None:
+            # No event loop — fire immediately (unit-test fallback)
+            session = self._sessions.get(session_id)
+            if session:
+                self._set_attention_state(session, AttentionState.NEEDS_INPUT, matched_line)
+            return
+        handle = self._loop.call_later(
+            self._idle_prompt_timeout,
+            self._fire_weak_prompt,
+            session_id,
+            matched_line,
+        )
+        self._weak_prompt_timers[session_id] = handle
+
+    def _fire_weak_prompt(self, session_id: str, matched_line: str) -> None:
+        """Callback fired after idle_prompt_timeout — set NEEDS_INPUT."""
+        self._weak_prompt_timers.pop(session_id, None)
+        session = self._sessions.get(session_id)
+        if session is None:
+            return
+        # Only fire if still RUNNING with no other attention
+        if (
+            session.process_state is ProcessState.RUNNING
+            and session.attention_state is AttentionState.NONE
+        ):
+            self._set_attention_state(session, AttentionState.NEEDS_INPUT, matched_line)
+
+    def _cancel_weak_prompt_timer(self, session_id: str) -> None:
+        """Cancel a pending weak prompt timer for the given session."""
+        handle = self._weak_prompt_timers.pop(session_id, None)
+        if handle is not None:
+            handle.cancel()
 
     # ------------------------------------------------------------------
     # Pane content scanning (for tmux restore)
@@ -322,6 +377,8 @@ class SessionManager:
 
     def close_all(self) -> None:
         self.stop_idle_checker()
+        for sid in list(self._weak_prompt_timers):
+            self._cancel_weak_prompt_timer(sid)
         for session in list(self._sessions.values()):
             if session.pty_process:
                 session.pty_process.close()
