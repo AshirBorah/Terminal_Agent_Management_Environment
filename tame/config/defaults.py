@@ -83,10 +83,14 @@ DEFAULT_CONFIG: dict = {
     },
     "notifications": {
         "enabled": True,
-        "do_not_disturb": False,
-        "dnd_start": "",
-        "dnd_end": "",
-        "history_max": 500,
+        "dnd": {
+            "enabled": False,
+            "start": "",
+            "end": "",
+        },
+        "history": {
+            "max_size": 500,
+        },
         "desktop": {
             "enabled": True,
             "urgency": "normal",

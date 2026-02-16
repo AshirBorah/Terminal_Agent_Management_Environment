@@ -122,3 +122,16 @@ class TestDispatch:
         assert EVENT_PRIORITY[EventType.ERROR] is Priority.CRITICAL
         assert EVENT_PRIORITY[EventType.COMPLETED] is Priority.MEDIUM
         assert EVENT_PRIORITY[EventType.SESSION_IDLE] is Priority.LOW
+
+    def test_dnd_from_config(self) -> None:
+        config = {
+            "dnd": {"enabled": True, "start": "22:00", "end": "07:00"},
+            "history": {"max_size": 100},
+            "desktop": {"enabled": False},
+            "audio": {"enabled": False},
+        }
+        engine = NotificationEngine(config)
+        assert engine._dnd_enabled is True
+        assert engine._dnd_start is not None
+        assert engine._dnd_end is not None
+        assert engine._history._events.maxlen == 100
