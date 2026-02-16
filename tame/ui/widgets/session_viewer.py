@@ -357,8 +357,8 @@ class SessionViewer(Widget):
 
             for y in range(rows):
                 row = buffer.get(y, {})
-                run_chars: list[str] = []
-                run_style: Style | None = None
+                run_chars = []
+                run_style = None
                 for x in range(cols):
                     char = row.get(x)
                     symbol = " " if char is None else (char.data or " ")

@@ -63,9 +63,7 @@ class SlackNotifier:
 
         payload = self._build_payload(event)
         # Fire and forget in a background thread to avoid blocking the event loop
-        thread = threading.Thread(
-            target=self._post, args=(payload,), daemon=True
-        )
+        thread = threading.Thread(target=self._post, args=(payload,), daemon=True)
         thread.start()
 
     def _build_payload(self, event: NotificationEvent) -> dict[str, Any]:
@@ -78,7 +76,11 @@ class SlackNotifier:
         ]
         if event.matched_text:
             fields.append(
-                {"title": "Matched", "value": f"```{event.matched_text[:200]}```", "short": False}
+                {
+                    "title": "Matched",
+                    "value": f"```{event.matched_text[:200]}```",
+                    "short": False,
+                }
             )
         return {
             "attachments": [

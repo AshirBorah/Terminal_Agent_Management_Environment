@@ -125,7 +125,9 @@ class NotificationEngine:
             if now - last < cooldown:
                 log.debug(
                     "Suppressed %s for session %s (cooldown %.0fs)",
-                    event_type.value, session_id, cooldown,
+                    event_type.value,
+                    session_id,
+                    cooldown,
                 )
                 return event
             self._last_fired[key] = now

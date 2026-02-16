@@ -12,6 +12,7 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.timer import Timer
 from textual.widgets import Input
 
 from tame.config.manager import ConfigManager
@@ -204,7 +205,11 @@ class TAMEApp(App):
             key = self._keybind_manager.get_key(action)
             if key:
                 self._bindings.bind(
-                    key, action, description=desc, show=show, priority=priority,
+                    key,
+                    action,
+                    description=desc,
+                    show=show,
+                    priority=priority,
                 )
 
         for conflict in self._keybind_manager.conflicts:
@@ -259,7 +264,7 @@ class TAMEApp(App):
 
         # Batched PTY output: accumulate chunks per session, flush on timer
         self._output_pending: dict[str, list[str]] = {}
-        self._output_flush_timer: object | None = None  # Timer handle
+        self._output_flush_timer: Timer | None = None
         self._app_focused: bool = True
 
         # Input history: accumulate typed chars per session, flush on Enter

@@ -81,7 +81,9 @@ class HistoryPicker(ModalScreen[str | None]):
                             classes=cls,
                             id=f"hist-{i}",
                         )
-            yield Label("Up/Down select | Enter run | ESC cancel", classes="hist-footer")
+            yield Label(
+                "Up/Down select | Enter run | ESC cancel", classes="hist-footer"
+            )
 
     def _update_highlight(self) -> None:
         for i in range(len(self._entries)):
