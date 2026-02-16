@@ -146,14 +146,10 @@ class TAMEApp(App):
     # The action name must match an action_<name>() method on the class.
     _BINDING_META: dict[str, tuple[str, bool, bool]] = {
         "new_session": ("New Session", True, False),
-        "delete_session": ("Delete Session", False, False),
         "rename_session": ("Rename Session", False, False),
         "prev_session": ("Prev Session", True, False),
         "next_session": ("Next Session", True, False),
         "toggle_sidebar": ("Toggle Sidebar", True, False),
-        "focus_search": ("Focus Search", False, True),
-        "focus_input": ("Focus Input", False, True),
-        "toggle_theme": ("Cycle Theme", False, False),
         "resume_all": ("Resume All", False, False),
         "pause_all": ("Pause All", False, False),
         "quit": ("Quit", True, False),

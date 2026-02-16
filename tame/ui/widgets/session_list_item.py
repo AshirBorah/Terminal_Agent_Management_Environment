@@ -53,6 +53,7 @@ class SessionListItem(Static):
     SessionListItem.highlighted {
         background: $accent;
         color: $text;
+        border-left: wide $secondary;
     }
     """
 

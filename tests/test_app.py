@@ -189,12 +189,13 @@ async def test_viewer_auto_focused_on_session_select(app: TAMEApp) -> None:
 
 
 @pytest.mark.asyncio
-async def test_shift_tab_focuses_search(app: TAMEApp) -> None:
+async def test_command_palette_focuses_search(app: TAMEApp) -> None:
     async with app.run_test(size=(120, 40)) as pilot:
         await _create_session_via_dialog(pilot)
         viewer = app.query_one(SessionViewer)
         assert viewer.has_focus
-        await pilot.press("shift+tab")
+        # Use command palette (Ctrl+Space → f) to focus search
+        app.action_focus_search()
         await pilot.pause()
         search = app.query_one("#session-search", Input)
         assert search.has_focus
@@ -204,7 +205,8 @@ async def test_shift_tab_focuses_search(app: TAMEApp) -> None:
 async def test_tab_from_search_returns_to_terminal(app: TAMEApp) -> None:
     async with app.run_test(size=(120, 40)) as pilot:
         await _create_session_via_dialog(pilot)
-        await pilot.press("shift+tab")
+        # Focus search via action (no dedicated keybinding)
+        app.action_focus_search()
         await pilot.pause()
         search = app.query_one("#session-search", Input)
         assert search.has_focus

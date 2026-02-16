@@ -57,15 +57,11 @@ uv run tame
 | F6               | Toggle sidebar       |
 | F7 / F8          | Resume / Pause all   |
 | F9               | Rename session       |
-| Ctrl+Shift+D     | Delete session       |
+| Alt+1 … Alt+9    | Jump to session N    |
 | Ctrl+Space       | Command palette      |
 | Ctrl+C           | Send SIGINT to PTY   |
 | Ctrl+D           | Send EOF to PTY      |
-| Ctrl+L           | Focus input          |
-| Ctrl+T           | Cycle theme          |
-| Alt+1 … Alt+9    | Jump to session N    |
-| Shift+Tab        | Focus search         |
-| Tab              | Tab-complete in PTY  |
+| Tab              | Send tab to PTY      |
 | F12              | Quit                 |
 
 All other keystrokes are forwarded to the active session's PTY. Key bindings are configurable via `[keybindings]` in config.

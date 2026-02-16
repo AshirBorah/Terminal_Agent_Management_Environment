@@ -39,4 +39,8 @@ class StatusBar(Static):
             f"Sessions: {self._total} | Active: {self._active} | "
             f"Waiting: {self._waiting} | Errors: {self._errors}"
         )
-        self.update(f"{stats} | C-SPC Cmd | F12 Quit")
+        keys = (
+            "F2 New | F3/F4 \u2190\u2192 | F6 Sidebar | F7/F8 \u25b6/\u23f8"
+            " | F9 Rename | C-SPC Cmd | F12 Quit"
+        )
+        self.update(f"{stats}  {keys}")
