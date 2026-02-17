@@ -128,6 +128,10 @@ def test_error_seen_is_priority_attention() -> None:
     assert AttentionState.ERROR_SEEN in PRIORITY_ATTENTION_STATES
 
 
+def test_needs_input_is_priority_attention() -> None:
+    assert AttentionState.NEEDS_INPUT in PRIORITY_ATTENTION_STATES
+
+
 def test_exited_is_priority_process() -> None:
     assert ProcessState.EXITED in PRIORITY_PROCESS_STATES
 

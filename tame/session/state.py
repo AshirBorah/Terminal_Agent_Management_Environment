@@ -67,7 +67,7 @@ VALID_ATTENTION_TRANSITIONS: dict[AttentionState, frozenset[AttentionState]] = {
 
 # States that bypass debounce (critical transitions)
 PRIORITY_ATTENTION_STATES: frozenset[AttentionState] = frozenset(
-    {AttentionState.ERROR_SEEN}
+    {AttentionState.ERROR_SEEN, AttentionState.NEEDS_INPUT}
 )
 
 PRIORITY_PROCESS_STATES: frozenset[ProcessState] = frozenset(

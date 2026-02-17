@@ -378,6 +378,40 @@ def test_new_output_cancels_weak_prompt_timer() -> None:
     assert session.id not in manager._weak_prompt_timers
 
 
+# ------------------------------------------------------------------
+# Batch pattern matching — last match wins within a chunk
+# ------------------------------------------------------------------
+
+
+def test_error_then_prompt_in_same_chunk_yields_waiting() -> None:
+    """When error and prompt appear in the same output chunk, the prompt
+    (later line) should win — final state is WAITING, not ERROR."""
+    manager, session, transitions = _make_manager_with_session()
+
+    chunk = (
+        b"Traceback (most recent call last)\n"
+        b"  File 'foo.py', line 42\n"
+        b"Some recovery output\n"
+        b"Do you want to proceed? [y/n]\n"
+    )
+    manager._on_session_output(session.id, chunk)
+    assert session.status is SessionState.WAITING
+    assert session.attention_state is AttentionState.NEEDS_INPUT
+
+
+def test_prompt_then_error_in_same_chunk_yields_error() -> None:
+    """When prompt appears before error in the same chunk, error wins."""
+    manager, session, transitions = _make_manager_with_session()
+
+    chunk = (
+        b"Continue? [y/n]\n"
+        b"Traceback (most recent call last)\n"
+    )
+    manager._on_session_output(session.id, chunk)
+    assert session.status is SessionState.ERROR
+    assert session.attention_state is AttentionState.ERROR_SEEN
+
+
 def test_split_utf8_multibyte_across_chunks_preserved() -> None:
     seen: list[str] = []
     manager, session, _ = _make_manager_with_session()

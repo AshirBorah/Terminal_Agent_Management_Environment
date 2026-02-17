@@ -301,24 +301,23 @@ class SessionManager:
         complete_lines = parts[:-1]
         self._scan_partials[session_id] = parts[-1]
 
+        # Batch pattern matching: collect last match per category across
+        # all lines in this chunk, then apply once.  This ensures that a
+        # prompt on a later line overrides an error on an earlier line
+        # within the same output chunk ("last match wins").
+        last_attention: tuple[str, str] | None = None  # (category, stripped)
+        last_process: tuple[str, str] | None = None
+
         for line in complete_lines:
             if not line:
                 continue
             match: PatternMatch | None = session.pattern_matcher.scan(line)
             if match is None:
                 continue
-            if match.category == "error":
-                self._set_attention_state(
-                    session, AttentionState.ERROR_SEEN, line.strip()
-                )
-            elif match.category == "prompt":
-                self._set_attention_state(
-                    session, AttentionState.NEEDS_INPUT, line.strip()
-                )
-            elif match.category == "weak_prompt":
-                self._schedule_weak_prompt(session_id, line.strip())
+            if match.category in ("error", "prompt", "weak_prompt"):
+                last_attention = (match.category, line.strip())
             elif match.category == "completion":
-                self._set_process_state(session, ProcessState.EXITED, line.strip())
+                last_process = (match.category, line.strip())
             # progress is informational — no status change
 
         # Some interactive CLIs print prompts without trailing newline.
@@ -327,12 +326,21 @@ class SessionManager:
         if partial and partial != self._last_scanned_partial.get(session_id):
             self._last_scanned_partial[session_id] = partial
             partial_match = session.pattern_matcher.scan(partial)
-            if partial_match and partial_match.category == "prompt":
-                self._set_attention_state(
-                    session, AttentionState.NEEDS_INPUT, partial.strip()
-                )
-            elif partial_match and partial_match.category == "weak_prompt":
-                self._schedule_weak_prompt(session_id, partial.strip())
+            if partial_match and partial_match.category in ("prompt", "weak_prompt"):
+                last_attention = (partial_match.category, partial.strip())
+
+        # Apply only the final matches from this chunk
+        if last_attention:
+            cat, text = last_attention
+            if cat == "error":
+                self._set_attention_state(session, AttentionState.ERROR_SEEN, text)
+            elif cat == "prompt":
+                self._set_attention_state(session, AttentionState.NEEDS_INPUT, text)
+            elif cat == "weak_prompt":
+                self._schedule_weak_prompt(session_id, text)
+        if last_process:
+            _, text = last_process
+            self._set_process_state(session, ProcessState.EXITED, text)
 
         # Scan for usage/quota info (#20)
         for line in complete_lines:
