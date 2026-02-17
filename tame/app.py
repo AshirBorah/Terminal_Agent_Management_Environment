@@ -268,6 +268,13 @@ class TAMEApp(App):
         self._notification_engine.on_toast = self._handle_notification_toast
         self._notification_engine.on_sidebar_flash = self._handle_sidebar_flash
 
+        git_cfg = cfg.get("git", {})
+        self._worktrees_enabled = bool(git_cfg.get("worktrees_enabled", False))
+        git_repo_dir = str(git_cfg.get("repo_dir", "")).strip()
+        self._git_repo_dir = (
+            os.path.expanduser(git_repo_dir) if git_repo_dir else self._default_working_dir
+        )
+
         self._active_session_id: str | None = None
         self._pending_status_updates: set[str] = set()
         self._status_update_scheduled: bool = False
@@ -504,16 +511,52 @@ class TAMEApp(App):
 
     def action_new_session(self) -> None:
         default_name = f"session-{len(self._session_manager.list_sessions()) + 1}"
-        self.push_screen(NameDialog(default_name), callback=self._create_session)
+        self.push_screen(
+            NameDialog(
+                default_name,
+                show_branch=self._worktrees_enabled,
+            ),
+            callback=self._create_session,
+        )
 
     def _create_session(self, result) -> None:
         if result is None:
             return
-        name, profile = result if isinstance(result, tuple) else (result, "")
+        if isinstance(result, tuple):
+            name = result[0]
+            profile = result[1] if len(result) > 1 else ""
+            branch = result[2] if len(result) > 2 else ""
+        else:
+            name, profile, branch = result, "", ""
 
         working_dir = self._default_working_dir
         if not os.path.isdir(working_dir):
             working_dir = os.path.expanduser("~")
+
+        # Create git worktree if branch was specified
+        worktree_path = ""
+        if branch and self._worktrees_enabled:
+            from tame.git.worktree import create_worktree
+
+            wt_path, err = create_worktree(
+                self._git_repo_dir, branch, new_branch=True
+            )
+            if err:
+                # Try attaching to existing branch
+                wt_path, err = create_worktree(
+                    self._git_repo_dir, branch, new_branch=False
+                )
+            if err:
+                log.warning("Failed to create worktree for branch %r: %s", branch, err)
+                try:
+                    toast = self.query_one(ToastOverlay)
+                    toast.show_toast(title="Worktree Error", message=err)
+                except Exception:
+                    pass
+            elif wt_path:
+                worktree_path = wt_path
+                working_dir = wt_path
+                log.info("Created worktree at %s for branch %s", wt_path, branch)
 
         command = self._build_session_command(name)
         viewer = self.query_one(SessionViewer)
@@ -531,6 +574,9 @@ class TAMEApp(App):
         tmux_session_name = self._build_tmux_session_name(name)
         if command and tmux_session_name:
             session.metadata["tmux_session_name"] = tmux_session_name
+        if worktree_path:
+            session.metadata["worktree_path"] = worktree_path
+            session.metadata["worktree_branch"] = branch
 
         sidebar = self.query_one(SessionSidebar)
         sidebar.add_session(session)
@@ -587,6 +633,21 @@ class TAMEApp(App):
         session_id = self._active_session_id
         if session_id is None:
             return
+
+        # Clean up git worktree if one was created for this session
+        try:
+            session = self._session_manager.get_session(session_id)
+            wt_path = session.metadata.get("worktree_path")
+            if wt_path:
+                from tame.git.worktree import remove_worktree
+
+                err = remove_worktree(self._git_repo_dir, wt_path)
+                if err:
+                    log.warning("Failed to remove worktree %s: %s", wt_path, err)
+                else:
+                    log.info("Removed worktree %s", wt_path)
+        except KeyError:
+            pass
 
         try:
             self._session_manager.delete_session(session_id)

@@ -16,6 +16,7 @@ def test_default_config_has_all_sections() -> None:
         "notifications",
         "keybindings",
         "profiles",
+        "git",
     }
     assert expected == set(DEFAULT_CONFIG.keys())
 

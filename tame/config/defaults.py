@@ -242,6 +242,10 @@ DEFAULT_CONFIG: dict = {
             },
         },
     },
+    "git": {
+        "worktrees_enabled": False,
+        "repo_dir": "",
+    },
     "keybindings": {
         "new_session": "f2",
         "rename_session": "f9",
