@@ -32,6 +32,7 @@ from tame.ui.widgets import (
     CommandPalette,
     ConfirmDialog,
     EasterEgg,
+    GroupDialog,
     HeaderBar,
     HistoryPicker,
     NameDialog,
@@ -141,6 +142,7 @@ class TAMEApp(App):
         "z": "pause_all",
         "u": "check_usage",
         "x": "clear_notifications",
+        "g": "set_group",
         "q": "quit",
     }
 
@@ -154,6 +156,7 @@ class TAMEApp(App):
         "toggle_sidebar": ("Toggle Sidebar", True, False),
         "resume_all": ("Resume All", False, False),
         "pause_all": ("Pause All", False, False),
+        "set_group": ("Set Group", False, False),
         "quit": ("Quit", True, False),
         "session_1": ("Session 1", False, False),
         "session_2": ("Session 2", False, False),
@@ -499,9 +502,10 @@ class TAMEApp(App):
         default_name = f"session-{len(self._session_manager.list_sessions()) + 1}"
         self.push_screen(NameDialog(default_name), callback=self._create_session)
 
-    def _create_session(self, name: str | None) -> None:
-        if name is None:
+    def _create_session(self, result) -> None:
+        if result is None:
             return
+        name, profile = result if isinstance(result, tuple) else (result, "")
 
         working_dir = self._default_working_dir
         if not os.path.isdir(working_dir):
@@ -518,6 +522,7 @@ class TAMEApp(App):
             command=command,
             rows=rows,
             cols=cols,
+            profile=profile,
         )
         tmux_session_name = self._build_tmux_session_name(name)
         if command and tmux_session_name:
@@ -613,13 +618,14 @@ class TAMEApp(App):
         except KeyError:
             return
         self.push_screen(
-            NameDialog(session.name),
+            NameDialog(session.name, show_profile=False),
             callback=self._confirm_rename_session,
         )
 
-    def _confirm_rename_session(self, new_name: str | None) -> None:
-        if new_name is None:
+    def _confirm_rename_session(self, result) -> None:
+        if result is None:
             return
+        new_name = result[0] if isinstance(result, tuple) else result
         session_id = self._active_session_id
         if session_id is None:
             return
@@ -646,6 +652,36 @@ class TAMEApp(App):
                 )
                 session.metadata["tmux_session_name"] = new_tmux
         log.info("Renamed session %s to '%s'", session_id, new_name)
+
+    def action_set_group(self) -> None:
+        """Open a dialog to assign the active session to a group."""
+        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette, GroupDialog)):
+            return
+        if self._active_session_id is None:
+            return
+        try:
+            session = self._session_manager.get_session(self._active_session_id)
+        except KeyError:
+            return
+        self.push_screen(
+            GroupDialog(session.group),
+            callback=self._confirm_set_group,
+        )
+
+    def _confirm_set_group(self, group: str | None) -> None:
+        if group is None:
+            return
+        session_id = self._active_session_id
+        if session_id is None:
+            return
+        self._session_manager.set_session_group(session_id, group)
+        try:
+            session = self._session_manager.get_session(session_id)
+        except KeyError:
+            return
+        sidebar = self.query_one(SessionSidebar)
+        sidebar.update_session(session)
+        log.info("Set group for session %s to '%s'", session_id, group)
 
     def action_export_session(self) -> None:
         """Export the active session's output buffer to a text file."""

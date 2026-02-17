@@ -1,5 +1,29 @@
 from __future__ import annotations
 
+import logging
+
+log = logging.getLogger(__name__)
+
+
+def get_profile_patterns(profile: str) -> dict[str, list[str]]:
+    """Get extra patterns for a named profile.
+
+    Returns a dict of ``{category: [regex, ...]}`` to merge with base
+    patterns.  Returns empty dict if *profile* is empty or unknown.
+    """
+    if not profile:
+        return {}
+    profiles = DEFAULT_CONFIG.get("profiles", {})
+    profile_cfg = profiles.get(profile)
+    if profile_cfg is None:
+        log.warning("Unknown pattern profile %r", profile)
+        return {}
+    result: dict[str, list[str]] = {}
+    for category, cat_cfg in profile_cfg.items():
+        if isinstance(cat_cfg, dict) and "regexes" in cat_cfg:
+            result[category] = list(cat_cfg["regexes"])
+    return result
+
 
 def get_default_patterns_flat() -> dict[str, list[str]]:
     """Flatten structured config patterns into {category: [regex, ...]}."""
@@ -158,6 +182,60 @@ DEFAULT_CONFIG: dict = {
             },
         },
     },
+    "profiles": {
+        "claude": {
+            "prompt": {
+                "regexes": [
+                    r"\(a\)pprove.*\(d\)eny",
+                    r"Allow .+ to .+\?",
+                    r"Do you want to (?:continue|proceed)",
+                ],
+            },
+            "error": {
+                "regexes": [
+                    r"(?i)\bAPIError\b",
+                    r"(?i)rate.?limit(?:ed|ing)?(?:\s+(?:exceeded|reached|hit)|\s*[:\-])",
+                    r"(?i)\bmax\s+tool\s+use\b",
+                ],
+            },
+        },
+        "codex": {
+            "prompt": {
+                "regexes": [
+                    r"\[y/n\]",
+                    r"Do you want to (?:continue|proceed)",
+                ],
+            },
+            "error": {
+                "regexes": [
+                    r"(?i)\bAPIError\b",
+                    r"(?i)rate.?limit(?:ed|ing)?(?:\s+(?:exceeded|reached|hit)|\s*[:\-])",
+                ],
+            },
+        },
+        "training": {
+            "progress": {
+                "regexes": [
+                    r"(?i)\bepoch\s+\d+",
+                    r"(?i)\bloss\s*[:=]\s*[\d.]+",
+                    r"\b\d{1,3}%",
+                    r"Step \d+/\d+",
+                ],
+            },
+            "completion": {
+                "regexes": [
+                    r"(?i)training\s+(?:complete|finished|done)",
+                ],
+            },
+            "error": {
+                "regexes": [
+                    r"(?i)\bOOM\b",
+                    r"(?i)CUDA\s+out\s+of\s+memory",
+                    r"(?i)\bnan\s+loss\b",
+                ],
+            },
+        },
+    },
     "keybindings": {
         "new_session": "f2",
         "rename_session": "f9",
@@ -166,6 +244,7 @@ DEFAULT_CONFIG: dict = {
         "toggle_sidebar": "f6",
         "resume_all": "f7",
         "pause_all": "f8",
+        "set_group": "f11",
         "quit": "f12",
         "session_1": "alt+1",
         "session_2": "alt+2",

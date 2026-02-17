@@ -62,3 +62,12 @@ class ViewerResized(Message):
         super().__init__()
         self.rows = rows
         self.cols = cols
+
+
+class GroupToggled(Message):
+    """A group's collapsed state was toggled in the sidebar."""
+
+    def __init__(self, group: str, collapsed: bool) -> None:
+        super().__init__()
+        self.group = group
+        self.collapsed = collapsed

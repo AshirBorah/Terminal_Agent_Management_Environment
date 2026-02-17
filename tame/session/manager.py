@@ -11,7 +11,7 @@ from typing import Callable
 
 log = logging.getLogger(__name__)
 
-from tame.config.defaults import get_default_patterns_flat
+from tame.config.defaults import get_default_patterns_flat, get_profile_patterns
 
 from .output_buffer import OutputBuffer
 from .pattern_matcher import PatternMatcher, PatternMatch
@@ -99,6 +99,7 @@ class SessionManager:
         command: list[str] | None = None,
         rows: int = 24,
         cols: int = 80,
+        profile: str = "",
     ) -> Session:
         shell = shell or os.environ.get("SHELL", "/bin/bash")
         session_id = uuid.uuid4().hex
@@ -106,6 +107,14 @@ class SessionManager:
         pty_proc = PTYProcess()
         pty_proc.start(shell=shell, cwd=working_dir, command=command,
                        rows=rows, cols=cols)
+
+        # Merge base patterns with profile-specific patterns
+        session_patterns = dict(self._patterns)
+        if profile:
+            for cat, regexes in get_profile_patterns(profile).items():
+                existing = list(session_patterns.get(cat, []))
+                # Prepend profile patterns so they take priority
+                session_patterns[cat] = regexes + existing
 
         now = datetime.now(timezone.utc)
         session = Session(
@@ -117,9 +126,10 @@ class SessionManager:
             created_at=now,
             last_activity=now,
             output_buffer=OutputBuffer(),
-            pattern_matcher=PatternMatcher(self._patterns),
+            pattern_matcher=PatternMatcher(session_patterns),
             pid=pty_proc.pid,
             pty_process=pty_proc,
+            profile=profile,
         )
         self._sessions[session_id] = session
         self._reset_idle_timer(session_id)
@@ -155,6 +165,23 @@ class SessionManager:
 
     def list_sessions(self) -> list[Session]:
         return list(self._sessions.values())
+
+    def set_session_group(self, session_id: str, group: str) -> None:
+        """Assign a session to a group (empty string = ungrouped)."""
+        session = self._get(session_id)
+        session.group = group
+
+    def list_groups(self) -> list[str]:
+        """Return sorted list of unique non-empty group names."""
+        groups = {s.group for s in self._sessions.values() if s.group}
+        return sorted(groups)
+
+    def list_sessions_by_group(self) -> dict[str, list[Session]]:
+        """Return sessions organized by group. Empty-string key = ungrouped."""
+        result: dict[str, list[Session]] = {}
+        for session in self._sessions.values():
+            result.setdefault(session.group, []).append(session)
+        return result
 
     # ------------------------------------------------------------------
     # Session control
