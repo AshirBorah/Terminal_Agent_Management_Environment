@@ -381,3 +381,30 @@ def test_new_output_cancels_weak_prompt_timer() -> None:
     manager._cancel_weak_prompt_timer(session.id)
     # Timer should be gone
     assert session.id not in manager._weak_prompt_timers
+
+
+def test_split_utf8_multibyte_across_chunks_preserved() -> None:
+    seen: list[str] = []
+    manager, session, _ = _make_manager_with_session()
+    manager._on_output = lambda _sid, text: seen.append(text)
+
+    # '€' split across PTY reads: e2 82 ac
+    manager._on_session_output(session.id, b"price: \xe2")
+    manager._on_session_output(session.id, b"\x82\xac\n")
+
+    assert "price: €" in session.output_buffer.get_all_text()
+    assert "\ufffd" not in session.output_buffer.get_all_text()
+    assert "".join(seen) == "price: €\n"
+
+
+def test_decoder_flushed_on_eof() -> None:
+    seen: list[str] = []
+    manager, session, _ = _make_manager_with_session()
+    manager._on_output = lambda _sid, text: seen.append(text)
+
+    # Incomplete multibyte code point should emit replacement only at EOF.
+    manager._on_session_output(session.id, b"incomplete: \xe2")
+    manager._on_session_output(session.id, b"")
+
+    assert "incomplete: \ufffd" in session.output_buffer.get_all_text()
+    assert "".join(seen).startswith("incomplete: ")

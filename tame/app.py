@@ -24,12 +24,14 @@ from tame.ui.events import (
     SessionSelected,
     SessionStatusChanged,
     SidebarFlash,
+    ViewerResized,
 )
 from tame.ui.keys.manager import KeybindManager
 from tame.ui.themes.manager import ThemeManager
 from tame.ui.widgets import (
     CommandPalette,
     ConfirmDialog,
+    EasterEgg,
     HeaderBar,
     HistoryPicker,
     NameDialog,
@@ -60,6 +62,10 @@ REQUIRED_PROMPT_PATTERNS = [
     r"Do you want to (?:continue|proceed)",
     r"\?\s*$",
 ]
+REDRAW_CONTROL_RE = re.compile(
+    r"\x1b\[[0-9;?]*(?:[ABCDHfJK])|\x1bc|\x0c|\r(?!\n)"
+)
+SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 
 SPECIAL_KEY_SEQUENCES: dict[str, str] = {
     "enter": "\r",
@@ -241,6 +247,9 @@ class TAMEApp(App):
         self._restore_tmux_sessions_on_startup = bool(
             sessions_cfg.get("restore_tmux_sessions_on_startup", True)
         )
+        self._tmux_snapshot_render = bool(
+            sessions_cfg.get("tmux_snapshot_render", self._start_in_tmux)
+        )
         tmux_prefix = str(sessions_cfg.get("tmux_session_prefix", "tame")).strip()
         self._tmux_session_prefix = tmux_prefix or "tame"
         self._tmux_available = shutil.which("tmux") is not None
@@ -265,6 +274,9 @@ class TAMEApp(App):
 
         # Input history: accumulate typed chars per session, flush on Enter
         self._input_line_buffer: dict[str, list[str]] = {}
+
+        # Easter egg: triggers once per app run
+        self._easter_egg_shown: bool = False
 
     def _get_patterns_from_config(self, cfg: dict) -> dict[str, list[str]]:
         patterns_cfg = cfg.get("patterns", {})
@@ -412,8 +424,17 @@ class TAMEApp(App):
             self.action_new_session()
 
     def on_resize(self, event: events.Resize) -> None:
-        del event
-        self._resize_active_session()
+        pass  # PTY resize now handled by _on_viewer_resized
+
+    def _on_viewer_resized(self, message: ViewerResized) -> None:
+        if self._active_session_id is None:
+            return
+        try:
+            self._session_manager.resize_session(
+                self._active_session_id, message.rows, message.cols
+            )
+        except (KeyError, RuntimeError):
+            pass
 
     def on_key(self, event: events.Key) -> None:
         # --- Open command palette overlay ---
@@ -439,6 +460,9 @@ class TAMEApp(App):
             if buf:
                 line = "".join(buf).strip()
                 if line:
+                    if line == "pls pls fix" and not self._easter_egg_shown:
+                        self._easter_egg_shown = True
+                        self.push_screen(EasterEgg())
                     self._record_input_history(sid, line)
         elif pty_input == "\x7f":
             # Backspace: pop last char from buffer
@@ -497,11 +521,16 @@ class TAMEApp(App):
             working_dir = os.path.expanduser("~")
 
         command = self._build_session_command(name)
+        viewer = self.query_one(SessionViewer)
+        rows = max(1, viewer.size.height) if viewer.size.height else 24
+        cols = max(1, viewer.size.width) if viewer.size.width else 80
         session = self._session_manager.create_session(
             name,
             working_dir,
             shell=self._default_shell,
             command=command,
+            rows=rows,
+            cols=cols,
         )
         tmux_session_name = self._build_tmux_session_name(name)
         if command and tmux_session_name:
@@ -818,6 +847,7 @@ class TAMEApp(App):
 
         viewer = self.query_one(SessionViewer)
         viewer.load_session(session_id, session.output_buffer)
+        self._refresh_viewer_from_tmux_snapshot(session)
         viewer.focus()
         self._resize_active_session()
 
@@ -855,6 +885,17 @@ class TAMEApp(App):
         self._output_pending.setdefault(session_id, []).append(text)
         if not self._app_focused:
             return
+        # Redraw-heavy control chunks (cursor movement / clear / CR redraw)
+        # are latency-sensitive and can artifact if delayed behind batching.
+        if (
+            session_id == self._active_session_id
+            and self._is_redraw_control_chunk(text)
+        ):
+            if self._output_flush_timer is not None:
+                self._output_flush_timer.stop()
+                self._output_flush_timer = None
+            self._flush_pending_output()
+            return
         # Small output (keystroke echo): flush immediately
         total = sum(len(c) for chunks in self._output_pending.values() for c in chunks)
         if total <= 64:
@@ -866,6 +907,10 @@ class TAMEApp(App):
             self._output_flush_timer = self.set_timer(
                 0.016, self._flush_pending_output, name="output_flush"
             )
+
+    @staticmethod
+    def _is_redraw_control_chunk(text: str) -> bool:
+        return bool(REDRAW_CONTROL_RE.search(text))
 
     def _flush_pending_output(self) -> None:
         """Drain accumulated output — one pyte.feed() per session."""
@@ -879,7 +924,12 @@ class TAMEApp(App):
         for session_id, chunks in pending.items():
             combined = "".join(chunks)
             if session_id == self._active_session_id:
-                viewer.append_output(combined)
+                try:
+                    session = self._session_manager.get_session(session_id)
+                except KeyError:
+                    continue
+                if not self._refresh_viewer_from_tmux_snapshot(session):
+                    viewer.append_output(combined)
             else:
                 # Background session: discard cached pyte state so it
                 # rebuilds from OutputBuffer when the user switches to it.
@@ -923,6 +973,9 @@ class TAMEApp(App):
 
         sidebar = self.query_one(SessionSidebar)
         restored_count = 0
+        viewer = self.query_one(SessionViewer)
+        rows = max(1, viewer.size.height) if viewer.size.height else 24
+        cols = max(1, viewer.size.width) if viewer.size.width else 80
         for tmux_session in tmux_sessions:
             display_name = self._display_name_for_tmux_session(tmux_session)
             try:
@@ -931,6 +984,8 @@ class TAMEApp(App):
                     working_dir,
                     shell=self._default_shell,
                     command=["tmux", "attach-session", "-t", tmux_session],
+                    rows=rows,
+                    cols=cols,
                 )
             except Exception:
                 log.exception("Failed to restore tmux session '%s'", tmux_session)
@@ -971,6 +1026,9 @@ class TAMEApp(App):
             working_dir = os.path.expanduser("~")
 
         sidebar = self.query_one(SessionSidebar)
+        viewer = self.query_one(SessionViewer)
+        rows = max(1, viewer.size.height) if viewer.size.height else 24
+        cols = max(1, viewer.size.width) if viewer.size.width else 80
         restored_count = 0
         for tmux_session in tmux_sessions:
             display_name = self._display_name_for_tmux_session(tmux_session)
@@ -980,6 +1038,8 @@ class TAMEApp(App):
                     working_dir,
                     shell=self._default_shell,
                     command=["tmux", "attach-session", "-t", tmux_session],
+                    rows=rows,
+                    cols=cols,
                 )
             except Exception:
                 log.exception("Failed to restore tmux session '%s'", tmux_session)
@@ -1010,6 +1070,81 @@ class TAMEApp(App):
         if proc.returncode != 0:
             return ""
         return proc.stdout
+
+    def _capture_tmux_pane_render(self, tmux_session: str) -> str | None:
+        """Capture a tmux pane snapshot for stable text rendering."""
+        proc = subprocess.run(
+            ["tmux", "capture-pane", "-p", "-e", "-t", tmux_session],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        return self._sanitize_tmux_snapshot_ansi(proc.stdout)
+
+    @staticmethod
+    def _sanitize_tmux_snapshot_ansi(text: str) -> str:
+        """Keep foreground styling while stripping background/reverse SGR attrs."""
+
+        def _repl(match: re.Match[str]) -> str:
+            params = match.group(1)
+            if params == "":
+                return match.group(0)  # ESC[m == reset
+            parts = params.split(";")
+            kept: list[str] = []
+            i = 0
+            while i < len(parts):
+                part = parts[i]
+                if part == "":
+                    kept.append(part)
+                    i += 1
+                    continue
+                if not part.isdigit():
+                    kept.append(part)
+                    i += 1
+                    continue
+                code = int(part)
+
+                # Strip reverse-video toggles.
+                if code in (7, 27):
+                    i += 1
+                    continue
+                # Strip background default + classic/bright background palette.
+                if code == 49 or 40 <= code <= 47 or 100 <= code <= 107:
+                    i += 1
+                    continue
+                # Strip extended background color sequences: 48;5;N / 48;2;R;G;B.
+                if code == 48:
+                    if i + 1 < len(parts) and parts[i + 1] == "5" and i + 2 < len(parts):
+                        i += 3
+                        continue
+                    if i + 1 < len(parts) and parts[i + 1] == "2" and i + 4 < len(parts):
+                        i += 5
+                        continue
+                    i += 1
+                    continue
+
+                kept.append(part)
+                i += 1
+
+            if not kept:
+                return ""
+            return f"\x1b[{';'.join(kept)}m"
+
+        return SGR_RE.sub(_repl, text)
+
+    def _refresh_viewer_from_tmux_snapshot(self, session) -> bool:
+        if not (self._tmux_snapshot_render and self._tmux_available):
+            return False
+        tmux_session = session.metadata.get("tmux_session_name")
+        if not tmux_session:
+            return False
+        snapshot = self._capture_tmux_pane_render(str(tmux_session))
+        if snapshot is None:
+            return False
+        self.query_one(SessionViewer).show_snapshot(snapshot)
+        return True
 
     def _list_existing_tmux_sessions(self) -> list[str]:
         proc = subprocess.run(

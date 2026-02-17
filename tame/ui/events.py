@@ -53,3 +53,12 @@ class SidebarFlash(Message):
     def __init__(self, session_id: str) -> None:
         super().__init__()
         self.session_id = session_id
+
+
+class ViewerResized(Message):
+    """Viewer dimensions changed — PTY should be resized to match."""
+
+    def __init__(self, rows: int, cols: int) -> None:
+        super().__init__()
+        self.rows = rows
+        self.cols = cols

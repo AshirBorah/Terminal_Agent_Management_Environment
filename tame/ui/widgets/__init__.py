@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .command_palette import CommandPalette
 from .confirm_dialog import ConfirmDialog
+from .easter_egg import EasterEgg
 from .header_bar import HeaderBar
 from .history_picker import HistoryPicker
 from .name_dialog import NameDialog
@@ -14,6 +15,7 @@ from .toast_overlay import ToastOverlay
 __all__ = [
     "CommandPalette",
     "ConfirmDialog",
+    "EasterEgg",
     "HeaderBar",
     "HistoryPicker",
     "NameDialog",

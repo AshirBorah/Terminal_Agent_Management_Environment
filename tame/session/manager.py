@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import codecs
 import os
 import re
 import uuid
@@ -71,6 +72,7 @@ class SessionManager:
         self._last_scanned_partial: dict[str, str] = {}
         # Pending weak prompt timers — session_id -> asyncio.TimerHandle
         self._weak_prompt_timers: dict[str, asyncio.TimerHandle] = {}
+        self._utf8_decoders: dict[str, codecs.IncrementalDecoder] = {}
 
     # ------------------------------------------------------------------
     # CRUD
@@ -82,12 +84,15 @@ class SessionManager:
         working_dir: str,
         shell: str | None = None,
         command: list[str] | None = None,
+        rows: int = 24,
+        cols: int = 80,
     ) -> Session:
         shell = shell or os.environ.get("SHELL", "/bin/bash")
         session_id = uuid.uuid4().hex
 
         pty_proc = PTYProcess()
-        pty_proc.start(shell=shell, cwd=working_dir, command=command)
+        pty_proc.start(shell=shell, cwd=working_dir, command=command,
+                       rows=rows, cols=cols)
 
         now = datetime.now(timezone.utc)
         session = Session(
@@ -121,6 +126,7 @@ class SessionManager:
         self._scan_partials.pop(session_id, None)
         self._last_scanned_partial.pop(session_id, None)
         self._cancel_weak_prompt_timer(session_id)
+        self._utf8_decoders.pop(session_id, None)
         del self._sessions[session_id]
 
     def get_session(self, session_id: str) -> Session:
@@ -200,6 +206,9 @@ class SessionManager:
             return
 
         if not data:
+            flushed_tail = self._decode_output_bytes(session_id, b"", final=True)
+            if flushed_tail:
+                self._process_output_text(session_id, session, flushed_tail)
             # EOF — process exited.
             self._cancel_weak_prompt_timer(session_id)
             self._scan_partials.pop(session_id, None)
@@ -210,7 +219,22 @@ class SessionManager:
             self._set_process_state(session, ProcessState.EXITED)
             return
 
-        text = data.decode("utf-8", errors="replace")
+        text = self._decode_output_bytes(session_id, data, final=False)
+        if not text:
+            return
+        self._process_output_text(session_id, session, text)
+
+    def _decode_output_bytes(self, session_id: str, data: bytes, *, final: bool) -> str:
+        decoder = self._utf8_decoders.get(session_id)
+        if decoder is None:
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            self._utf8_decoders[session_id] = decoder
+        text = decoder.decode(data, final=final)
+        if final:
+            self._utf8_decoders.pop(session_id, None)
+        return text
+
+    def _process_output_text(self, session_id: str, session: Session, text: str) -> None:
         session.output_buffer.append_data(text)
         session.last_activity = datetime.now(timezone.utc)
 
@@ -457,6 +481,7 @@ class SessionManager:
         self._sessions.clear()
         self._scan_partials.clear()
         self._last_scanned_partial.clear()
+        self._utf8_decoders.clear()
 
     # ------------------------------------------------------------------
     # Helpers
