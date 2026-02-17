@@ -53,10 +53,10 @@ DEFAULT_CONFIG: dict = {
         },
         "error": {
             "regexes": [
-                r"(?i)error:",
-                r"(?i)fatal:",
+                r"(?i)\berror\b\s*:",
+                r"(?i)\bfatal\b\s*:",
                 r"Traceback \(most recent call last\)",
-                r"(?i)APIError",
+                r"(?i)\bAPIError\b",
                 r"(?i)rate.?limit(?:ed|ing)?(?:\s+(?:exceeded|reached|hit)|\s*[:\-])",
             ],
             "shell_regexes": [
@@ -68,20 +68,20 @@ DEFAULT_CONFIG: dict = {
         },
         "completion": {
             "regexes": [
-                r"(?i)task completed",
-                r"(?i)^\s*done\.?\s*$",
-                r"(?i)finished",
+                r"(?i)^\s*task\s+completed\.?\s*$",
+                r"(?i)^\s*all\s+tasks?\s+(?:completed|done)\.?\s*$",
             ],
             "shell_regexes": [],
         },
         "progress": {
             "regexes": [
-                r"\d+%",
+                r"\b\d{1,3}%",
                 r"Step \d+/\d+",
             ],
             "shell_regexes": [],
         },
         "idle_prompt_timeout": 3.0,
+        "state_debounce_ms": 500,
     },
     "theme": {
         "current": "dark",

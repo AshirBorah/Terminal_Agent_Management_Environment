@@ -379,15 +379,6 @@ def test_normalize_legacy_rate_limit_pattern(tmp_path, monkeypatch) -> None:
     )
 
 
-def test_normalize_legacy_prompt_patterns(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    app = TAMEApp()
-    patterns = app._normalize_prompt_patterns([r"\[y/n\]"])
-    assert r"\?\s*$" in patterns
-    assert r"Do you want to (?:continue|proceed)" in patterns
-
-
 def test_get_patterns_merges_shell_regexes(tmp_path, monkeypatch) -> None:
     """Both agent and shell regexes should appear in the merged result, agent first."""
     monkeypatch.setenv("HOME", str(tmp_path))

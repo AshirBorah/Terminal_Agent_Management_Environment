@@ -19,7 +19,7 @@ def _make_manager_with_session() -> tuple[
     ) -> None:
         transitions.append((old, new))
 
-    manager = SessionManager(on_status_change=on_status)
+    manager = SessionManager(on_status_change=on_status, state_debounce_ms=0)
     now = datetime.now(timezone.utc)
     session = Session(
         id="s1",
@@ -160,7 +160,7 @@ def _make_manager_with_pty_session(
     ) -> None:
         transitions.append((old, new))
 
-    manager = SessionManager(on_status_change=on_status)
+    manager = SessionManager(on_status_change=on_status, state_debounce_ms=0)
     now = datetime.now(timezone.utc)
     session = Session(
         id="s1",
@@ -278,41 +278,36 @@ def test_paused_gives_paused() -> None:
 # ------------------------------------------------------------------
 
 
-def test_check_idle_sessions_transitions_to_idle() -> None:
+def test_idle_timer_fires_transitions_to_idle() -> None:
     manager, session, transitions = _make_manager_with_session()
-    # Simulate old last_activity
-    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=400)
-    manager._check_idle_sessions()
+    # Directly fire the idle timeout callback
+    manager._fire_idle_timeout(session.id)
     assert session.status is SessionState.IDLE
     assert (SessionState.ACTIVE, SessionState.IDLE) in transitions
 
 
-def test_check_idle_sessions_skips_non_running() -> None:
+def test_idle_timer_skips_non_running() -> None:
     manager, session, transitions = _make_manager_with_session()
     session.process_state = ProcessState.EXITED
-    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=400)
-    manager._check_idle_sessions()
+    manager._fire_idle_timeout(session.id)
     # Should NOT transition — process already exited
     assert session.attention_state is AttentionState.NONE
     assert transitions == []
 
 
-def test_check_idle_sessions_skips_already_attention() -> None:
+def test_idle_timer_skips_already_attention() -> None:
     manager, session, transitions = _make_manager_with_session()
     session.attention_state = AttentionState.NEEDS_INPUT
-    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=400)
-    manager._check_idle_sessions()
+    manager._fire_idle_timeout(session.id)
     # Should NOT overwrite NEEDS_INPUT with IDLE
     assert session.attention_state is AttentionState.NEEDS_INPUT
     assert transitions == []
 
 
-def test_check_idle_sessions_respects_threshold() -> None:
+def test_idle_timer_skips_unknown_session() -> None:
     manager, session, transitions = _make_manager_with_session()
-    # Activity just 10 seconds ago — below the 300s default threshold
-    session.last_activity = datetime.now(timezone.utc) - timedelta(seconds=10)
-    manager._check_idle_sessions()
-    assert session.attention_state is AttentionState.NONE
+    # Fire with a non-existent session ID — should not raise
+    manager._fire_idle_timeout("nonexistent-id")
     assert transitions == []
 
 

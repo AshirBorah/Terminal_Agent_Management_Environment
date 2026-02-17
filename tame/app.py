@@ -58,10 +58,6 @@ BROAD_RATE_LIMIT_PATTERNS = {
 REFINED_RATE_LIMIT_PATTERN = (
     r"(?i)rate.?limit(?:ed|ing)?(?:\s+(?:exceeded|reached|hit)|\s*[:\-])"
 )
-REQUIRED_PROMPT_PATTERNS = [
-    r"Do you want to (?:continue|proceed)",
-    r"\?\s*$",
-]
 REDRAW_CONTROL_RE = re.compile(
     r"\x1b\[[0-9;?]*(?:[ABCDHfJK])|\x1bc|\x0c|\r(?!\n)"
 )
@@ -225,12 +221,14 @@ class TAMEApp(App):
         idle_threshold = float(sessions_cfg.get("idle_threshold_seconds", 300))
         patterns_cfg = cfg.get("patterns", {})
         idle_prompt_timeout = float(patterns_cfg.get("idle_prompt_timeout", 3.0))
+        state_debounce_ms = float(patterns_cfg.get("state_debounce_ms", 500))
         self._session_manager = SessionManager(
             on_status_change=self._handle_status_change,
             on_output=self._handle_pty_output,
             patterns=self._get_patterns_from_config(cfg),
             idle_threshold_seconds=idle_threshold,
             idle_prompt_timeout=idle_prompt_timeout,
+            state_debounce_ms=state_debounce_ms,
         )
         default_working_dir = str(
             sessions_cfg.get("default_working_directory", "")
@@ -292,8 +290,6 @@ class TAMEApp(App):
                 shell_regexes = list(cat_cfg.get("shell_regexes", []))
                 if category == "error":
                     regexes = self._normalize_error_patterns(regexes)
-                elif category == "prompt":
-                    regexes = self._normalize_prompt_patterns(regexes)
                 result[category] = regexes + shell_regexes
         return result
 
@@ -312,14 +308,6 @@ class TAMEApp(App):
             normalized.append(REFINED_RATE_LIMIT_PATTERN)
         return normalized
 
-    def _normalize_prompt_patterns(self, regexes: list[str]) -> list[str]:
-        """Ensure baseline prompt detection patterns exist in user config."""
-        normalized = list(regexes)
-        for required in REQUIRED_PROMPT_PATTERNS:
-            if required not in normalized:
-                normalized.append(required)
-        return normalized
-
     def compose(self) -> ComposeResult:
         yield HeaderBar()
         with Horizontal(id="main-content"):
@@ -332,7 +320,6 @@ class TAMEApp(App):
     def on_mount(self) -> None:
         loop = asyncio.get_running_loop()
         self._session_manager.attach_to_loop(loop)
-        self._session_manager.start_idle_checker()
         self.call_later(self._restore_tmux_sessions_async)
         self._start_resource_poll()
         log.info("TAME started")
