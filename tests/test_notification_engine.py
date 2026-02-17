@@ -141,3 +141,25 @@ class TestDispatch:
         assert engine._dnd_start is not None
         assert engine._dnd_end is not None
         assert engine._history._events.maxlen == 100
+
+    def test_history_filter_by_session(self) -> None:
+        engine = _make_engine()
+        engine.dispatch(EventType.ERROR, "s1", "agent-1", "err1")
+        engine.dispatch(EventType.COMPLETED, "s2", "agent-2", "done")
+        engine.dispatch(EventType.ERROR, "s1", "agent-1", "err2")
+
+        history = engine.get_history()
+        assert len(history.get_by_session("s1")) == 2
+        assert len(history.get_by_session("s2")) == 1
+        assert len(history.get_by_session("s3")) == 0
+
+    def test_history_filter_by_type(self) -> None:
+        engine = _make_engine()
+        engine.dispatch(EventType.ERROR, "s1", "agent-1", "err")
+        engine.dispatch(EventType.COMPLETED, "s1", "agent-1", "done")
+        engine.dispatch(EventType.ERROR, "s2", "agent-2", "err2")
+
+        history = engine.get_history()
+        assert len(history.get_by_type(EventType.ERROR)) == 2
+        assert len(history.get_by_type(EventType.COMPLETED)) == 1
+        assert len(history.get_by_type(EventType.INPUT_NEEDED)) == 0
