@@ -219,6 +219,9 @@ class SessionViewer(Widget):
     _RENDER_INTERVAL: float = 1.0 / 60
     _FALLBACK_MAX_CHARS: int = 500_000
 
+    # Maximum cached terminal states (LRU eviction for memory)
+    _MAX_CACHED_TERMINALS: int = 5
+
     def __init__(self) -> None:
         super().__init__(id="session-viewer")
         if pyte is None:
@@ -231,11 +234,15 @@ class SessionViewer(Widget):
         self._cols: int = 80
         self._has_session: bool = False
         self._terminals: dict[str, _TerminalState] = {}
+        self._terminal_lru: list[str] = []  # most recent at end
         self._active_terminal: _TerminalState | None = None
         self._scroll_offset: int = 0  # 0 = at bottom
         self._auto_scroll: bool = True
         self._dirty: bool = False
         self._refresh_timer: Timer | None = None
+        # In-session search state
+        self._search_matches: list[tuple[int, int, int]] = []  # (row, start_col, end_col)
+        self._current_match_idx: int = -1
 
     def append_output(self, text: str) -> None:
         """Feed new PTY output into terminal state and schedule a refresh."""
@@ -284,6 +291,7 @@ class SessionViewer(Widget):
         if session_id in self._terminals:
             # Already cached — instant swap
             self._active_terminal = self._terminals[session_id]
+            self._touch_lru(session_id)
             self.refresh()
             return
 
@@ -296,7 +304,28 @@ class SessionViewer(Widget):
             terminal.feed(full_text)
         self._terminals[session_id] = terminal
         self._active_terminal = terminal
+        self._touch_lru(session_id)
+        self._evict_lru()
         self.refresh()
+
+    def _touch_lru(self, session_id: str) -> None:
+        """Move session_id to the end of the LRU list (most recently used)."""
+        if session_id in self._terminal_lru:
+            self._terminal_lru.remove(session_id)
+        self._terminal_lru.append(session_id)
+
+    def _evict_lru(self) -> None:
+        """Evict oldest cached terminal states beyond the limit."""
+        while len(self._terminal_lru) > self._MAX_CACHED_TERMINALS:
+            oldest = self._terminal_lru.pop(0)
+            if oldest in self._terminals:
+                terminal = self._terminals[oldest]
+                if self._active_terminal is not terminal:
+                    del self._terminals[oldest]
+                else:
+                    # Don't evict active terminal
+                    self._terminal_lru.append(oldest)
+                    break
 
     def load_buffer(self, output_buffer: OutputBuffer) -> None:
         """Legacy method — reset terminal state and replay buffer contents.
@@ -450,6 +479,97 @@ class SessionViewer(Widget):
         return output
 
     # ------------------------------------------------------------------
+    # In-session search
+    # ------------------------------------------------------------------
+
+    def set_search_highlights(
+        self, query: str, is_regex: bool = False
+    ) -> int:
+        """Find matches in the current screen buffer and return match count."""
+        self._search_matches = []
+        self._current_match_idx = -1
+        if not query or self._active_terminal is None:
+            self.refresh()
+            return 0
+        self._search_matches = self._find_matches_in_screen(query, is_regex)
+        if self._search_matches:
+            self._current_match_idx = 0
+        self.refresh()
+        return len(self._search_matches)
+
+    def clear_search_highlights(self) -> None:
+        """Remove all search highlights."""
+        self._search_matches = []
+        self._current_match_idx = -1
+        self.refresh()
+
+    def navigate_search(self, forward: bool = True) -> int:
+        """Move to the next/previous match. Returns current index."""
+        if not self._search_matches:
+            return -1
+        if forward:
+            self._current_match_idx = (self._current_match_idx + 1) % len(
+                self._search_matches
+            )
+        else:
+            self._current_match_idx = (self._current_match_idx - 1) % len(
+                self._search_matches
+            )
+        self.refresh()
+        return self._current_match_idx
+
+    @property
+    def current_match_index(self) -> int:
+        return self._current_match_idx
+
+    @property
+    def match_count(self) -> int:
+        return len(self._search_matches)
+
+    def _find_matches_in_screen(
+        self, query: str, is_regex: bool
+    ) -> list[tuple[int, int, int]]:
+        """Search the pyte screen buffer row-by-row, returning (row, start, end)."""
+        if self._active_terminal is None:
+            return []
+        screen = self._active_terminal.screen
+        rows = max(1, self._rows)
+        cols = max(1, self._cols)
+        matches: list[tuple[int, int, int]] = []
+
+        if is_regex:
+            try:
+                pattern = re.compile(query, re.IGNORECASE)
+            except re.error:
+                return []
+        else:
+            query_lower = query.lower()
+
+        for y in range(rows):
+            row = screen.buffer.get(y, {})
+            line_chars = []
+            for x in range(cols):
+                char = row.get(x)
+                line_chars.append(" " if char is None else (char.data or " "))
+            line = "".join(line_chars)
+
+            if is_regex:
+                for m in pattern.finditer(line):
+                    if m.end() > m.start():
+                        matches.append((y, m.start(), m.end()))
+            else:
+                line_lower = line.lower()
+                start = 0
+                while True:
+                    idx = line_lower.find(query_lower, start)
+                    if idx == -1:
+                        break
+                    matches.append((y, idx, idx + len(query)))
+                    start = idx + 1
+
+        return matches
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -506,6 +626,14 @@ class SessionViewer(Widget):
             cursor_hidden = bool(getattr(cursor, "hidden", False))
             has_focus = self.has_focus
 
+            # Build a quick lookup of highlighted cells for search
+            highlight_cells: dict[tuple[int, int], bool] = {}  # (y, x) -> is_current
+            if self._search_matches:
+                for match_idx, (my, ms, me) in enumerate(self._search_matches):
+                    is_current = match_idx == self._current_match_idx
+                    for mx in range(ms, me):
+                        highlight_cells[(my, mx)] = is_current
+
             for y in range(rows):
                 row = buffer.get(y, {})
                 run_chars = []
@@ -521,6 +649,13 @@ class SessionViewer(Widget):
                         and y == cursor_y
                     ):
                         style += Style(reverse=True)
+                    # Apply search highlighting
+                    cell_key = (y, x)
+                    if cell_key in highlight_cells:
+                        if highlight_cells[cell_key]:
+                            style += Style(bgcolor="dark_orange3", color="white", bold=True)
+                        else:
+                            style += Style(bgcolor="yellow", color="black")
                     if style == run_style:
                         run_chars.append(symbol)
                     else:

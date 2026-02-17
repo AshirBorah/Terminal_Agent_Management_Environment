@@ -194,7 +194,15 @@ class PTYProcess:
             self._master_fd = None
         if self._process is not None:
             if self.is_alive:
-                self.terminate()
+                try:
+                    self.terminate()
+                except Exception:
+                    # Last-resort kill to prevent zombie processes
+                    try:
+                        self._process.kill()
+                        self._process.wait(timeout=5.0)
+                    except Exception:
+                        pass
             self._process = None
         self._on_data = None
         self._loop = None

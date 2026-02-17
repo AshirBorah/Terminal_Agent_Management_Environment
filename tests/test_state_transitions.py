@@ -153,3 +153,58 @@ def test_all_process_states_have_transition_entry() -> None:
 def test_all_attention_states_have_transition_entry() -> None:
     for state in AttentionState:
         assert state in VALID_ATTENTION_TRANSITIONS
+
+
+# ------------------------------------------------------------------
+# Display state derivation edge cases (Phase 3.2)
+# ------------------------------------------------------------------
+from tame.session.state import SessionState, compute_session_state
+
+
+def test_exited_error_seen_yields_error() -> None:
+    """EXITED + ERROR_SEEN should display as ERROR."""
+    result = compute_session_state(ProcessState.EXITED, AttentionState.ERROR_SEEN)
+    assert result is SessionState.ERROR
+
+
+def test_exited_none_yields_done() -> None:
+    """EXITED + NONE should display as DONE."""
+    result = compute_session_state(ProcessState.EXITED, AttentionState.NONE)
+    assert result is SessionState.DONE
+
+
+def test_paused_error_seen_yields_paused() -> None:
+    """PAUSED + ERROR_SEEN should display as PAUSED (process priority)."""
+    result = compute_session_state(ProcessState.PAUSED, AttentionState.ERROR_SEEN)
+    assert result is SessionState.PAUSED
+
+
+def test_paused_needs_input_yields_paused() -> None:
+    """PAUSED + NEEDS_INPUT should display as PAUSED (process priority)."""
+    result = compute_session_state(ProcessState.PAUSED, AttentionState.NEEDS_INPUT)
+    assert result is SessionState.PAUSED
+
+
+def test_running_error_seen_yields_error() -> None:
+    """RUNNING + ERROR_SEEN should display as ERROR."""
+    result = compute_session_state(ProcessState.RUNNING, AttentionState.ERROR_SEEN)
+    assert result is SessionState.ERROR
+
+
+def test_running_needs_input_yields_waiting() -> None:
+    """RUNNING + NEEDS_INPUT should display as WAITING."""
+    result = compute_session_state(ProcessState.RUNNING, AttentionState.NEEDS_INPUT)
+    assert result is SessionState.WAITING
+
+
+def test_running_idle_yields_idle() -> None:
+    """RUNNING + IDLE should display as IDLE."""
+    result = compute_session_state(ProcessState.RUNNING, AttentionState.IDLE)
+    assert result is SessionState.IDLE
+
+
+def test_starting_any_attention_yields_starting() -> None:
+    """STARTING always yields STARTING regardless of attention."""
+    for attention in AttentionState:
+        result = compute_session_state(ProcessState.STARTING, attention)
+        assert result is SessionState.STARTING

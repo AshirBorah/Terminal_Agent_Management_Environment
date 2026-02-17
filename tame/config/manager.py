@@ -1,11 +1,28 @@
 from __future__ import annotations
 
 import copy
+import logging
 import os
+import re
 import tomllib
 from pathlib import Path
 
 from tame.config.defaults import DEFAULT_CONFIG
+
+log = logging.getLogger(__name__)
+
+# Numeric config keys that must be non-negative, with their floor values.
+_CLAMP_NON_NEGATIVE: dict[str, float] = {
+    "idle_threshold_seconds": 0,
+    "idle_prompt_timeout": 0,
+    "state_debounce_ms": 0,
+    "resource_poll_seconds": 1,
+    "timeout_ms": 0,
+    "volume": 0,
+    "max_size": 1,
+    "timeout": 0,
+    "verbosity": 0,
+}
 
 
 class ConfigManager:
@@ -31,12 +48,58 @@ class ConfigManager:
             self._config = defaults
             return defaults
 
-        with open(self._config_path, "rb") as f:
-            user_config = tomllib.load(f)
+        try:
+            with open(self._config_path, "rb") as f:
+                user_config = tomllib.load(f)
+        except Exception as exc:
+            log.warning(
+                "Failed to parse config %s: %s — using defaults", self._config_path, exc
+            )
+            self._config = defaults
+            return defaults
 
         merged = self._deep_merge(defaults, user_config)
+        self._clamp_numeric_values(merged)
+        self._validate_regex_patterns(merged)
         self._config = merged
         return merged
+
+    def _clamp_numeric_values(self, config: dict) -> None:
+        """Walk config and clamp known numeric fields to sane ranges."""
+        for key, value in config.items():
+            if isinstance(value, dict):
+                self._clamp_numeric_values(value)
+            elif key in _CLAMP_NON_NEGATIVE and isinstance(value, (int, float)):
+                floor = _CLAMP_NON_NEGATIVE[key]
+                if value < floor:
+                    log.warning(
+                        "Config key %r has invalid value %s, clamping to %s",
+                        key, value, floor,
+                    )
+                    config[key] = floor
+
+    def _validate_regex_patterns(self, config: dict) -> None:
+        """Test-compile all regex patterns; replace invalid ones."""
+        patterns_cfg = config.get("patterns", {})
+        for category in ("error", "prompt", "completion", "progress"):
+            cat_cfg = patterns_cfg.get(category, {})
+            if not isinstance(cat_cfg, dict):
+                continue
+            for list_key in ("regexes", "shell_regexes", "weak_regexes"):
+                regexes = cat_cfg.get(list_key, [])
+                if not isinstance(regexes, list):
+                    continue
+                valid: list[str] = []
+                for pattern in regexes:
+                    try:
+                        re.compile(pattern)
+                        valid.append(pattern)
+                    except re.error as exc:
+                        log.warning(
+                            "Invalid regex in patterns.%s.%s: %r (%s) — skipping",
+                            category, list_key, pattern, exc,
+                        )
+                cat_cfg[list_key] = valid
 
     def _deep_merge(self, base: dict, override: dict) -> dict:
         result = base.copy()

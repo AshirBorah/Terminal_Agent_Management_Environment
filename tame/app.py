@@ -21,6 +21,9 @@ from tame.notifications.models import EventType
 from tame.session.manager import SessionManager
 from tame.session.state import SessionState
 from tame.ui.events import (
+    SearchDismissed,
+    SearchNavigate,
+    SearchQueryChanged,
     SessionSelected,
     SessionStatusChanged,
     SidebarFlash,
@@ -37,7 +40,9 @@ from tame.ui.widgets import (
     HeaderBar,
     HistoryPicker,
     NameDialog,
+    NotificationPanel,
     SearchDialog,
+    SessionSearchBar,
     SessionSidebar,
     SessionViewer,
     StatusBar,
@@ -123,7 +128,10 @@ class TAMEApp(App):
         "c": "new_session",
         "d": "delete_session",
         "e": "export_session",
+        "f": "session_search",
+        "g": "global_search",
         "h": "show_history",
+        "l": "notification_history",
         "m": "rename_session",
         "n": "next_session",
         "p": "prev_session",
@@ -137,14 +145,12 @@ class TAMEApp(App):
         "8": "session_8",
         "9": "session_9",
         "s": "toggle_sidebar",
-        "f": "focus_search",
         "i": "focus_input",
         "t": "toggle_theme",
         "r": "resume_all",
         "z": "pause_all",
         "u": "check_usage",
         "x": "clear_notifications",
-        "g": "set_group",
         "q": "quit",
     }
 
@@ -176,7 +182,9 @@ class TAMEApp(App):
     BINDINGS = [
         Binding("ctrl+c", "send_sigint", "Send SIGINT", show=False, priority=True),
         Binding("ctrl+d", "send_eof", "Send EOF", show=False, priority=True),
-        Binding("ctrl+f", "global_search", "Global Search", show=False, priority=True),
+        Binding("ctrl+f", "session_search", "Search in Session", show=False, priority=True),
+        Binding("ctrl+shift+f", "global_search", "Global Search", show=False, priority=True),
+        Binding("f5", "notification_history", "Notification Log", show=True, priority=False),
         Binding("tab", "send_tab", "Tab Complete", show=False, priority=True),
     ]
 
@@ -328,6 +336,7 @@ class TAMEApp(App):
             yield SessionSidebar()
             with Vertical(id="right-panel"):
                 yield SessionViewer()
+                yield SessionSearchBar()
         yield StatusBar()
         yield ToastOverlay()
 
@@ -336,6 +345,7 @@ class TAMEApp(App):
         self._session_manager.attach_to_loop(loop)
         self.call_later(self._restore_tmux_sessions_async)
         self._start_resource_poll()
+        self._start_tmux_health_check()
         log.info("TAME started")
 
     # ------------------------------------------------------------------
@@ -899,6 +909,51 @@ class TAMEApp(App):
         result = git_diff(session.working_dir)
         self.push_screen(DiffViewer(result, title=f"Diff: {session.name}"))
 
+    def action_session_search(self) -> None:
+        """Toggle the in-session search bar."""
+        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette)):
+            return
+        search_bar = self.query_one(SessionSearchBar)
+        if search_bar.visible:
+            search_bar.hide()
+        else:
+            search_bar.show()
+
+    def action_notification_history(self) -> None:
+        """Open the notification history panel."""
+        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette, NotificationPanel)):
+            return
+        history = self._notification_engine.get_history()
+        self.push_screen(
+            NotificationPanel(history),
+            callback=self._handle_notification_panel_result,
+        )
+
+    def _handle_notification_panel_result(self, session_id: str | None) -> None:
+        if session_id is not None:
+            self._select_session(session_id)
+
+    # ------------------------------------------------------------------
+    # In-session search message handlers
+    # ------------------------------------------------------------------
+
+    def on_search_query_changed(self, event: SearchQueryChanged) -> None:
+        viewer = self.query_one(SessionViewer)
+        total = viewer.set_search_highlights(event.query, event.is_regex)
+        search_bar = self.query_one(SessionSearchBar)
+        search_bar.update_match_count(viewer.current_match_index, total)
+
+    def on_search_navigate(self, event: SearchNavigate) -> None:
+        viewer = self.query_one(SessionViewer)
+        idx = viewer.navigate_search(event.forward)
+        search_bar = self.query_one(SessionSearchBar)
+        search_bar.update_match_count(idx, viewer.match_count)
+
+    def on_search_dismissed(self, event: SearchDismissed) -> None:
+        viewer = self.query_one(SessionViewer)
+        viewer.clear_search_highlights()
+        viewer.focus()
+
     def action_focus_search(self) -> None:
         if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette)):
             return
@@ -1361,17 +1416,22 @@ class TAMEApp(App):
         cfg = self._config_manager.config
         interval = float(cfg.get("sessions", {}).get("resource_poll_seconds", 5))
         self._resource_poll_interval = interval
-        self.set_interval(interval, self._poll_resources, name="resource_poll")
+        self.set_interval(interval, self._poll_resources_async, name="resource_poll")
 
-    def _poll_resources(self) -> None:
-        """Update HeaderBar and sidebar items with CPU/MEM for all sessions."""
+    async def _poll_resources_async(self) -> None:
+        """Run resource polling in executor to avoid blocking the event loop."""
+        loop = asyncio.get_running_loop()
+        results = await loop.run_in_executor(None, self._collect_resource_data)
+        self._apply_resource_data(results)
+
+    def _collect_resource_data(self) -> list[tuple[str, float, str]]:
+        """Collect CPU/MEM data for all sessions (runs in thread)."""
         try:
             import psutil
         except ImportError:
-            return
+            return []
 
-        from tame.ui.widgets.session_list_item import SessionListItem
-
+        data: list[tuple[str, float, str]] = []
         for session in self._session_manager.list_sessions():
             if session.pid is None:
                 continue
@@ -1384,22 +1444,64 @@ class TAMEApp(App):
                     mem_str = f"{mem_mb / 1024:.1f}GB"
                 else:
                     mem_str = f"{mem_mb:.0f}MB"
+                data.append((session.id, cpu, mem_str))
+            except Exception:
+                pass
+        return data
 
-                # Update sidebar list item
+    def _apply_resource_data(self, results: list[tuple[str, float, str]]) -> None:
+        """Apply collected resource data to UI widgets (runs on main thread)."""
+        from tame.ui.widgets.session_list_item import SessionListItem
+
+        for session_id, cpu, mem_str in results:
+            try:
+                item = self.query_one(
+                    f"#session-item-{session_id}", SessionListItem
+                )
+                item.update_resources(cpu, mem_str)
+            except Exception:
+                pass
+            if session_id == self._active_session_id:
                 try:
-                    item = self.query_one(
-                        f"#session-item-{session.id}", SessionListItem
-                    )
-                    item.update_resources(cpu, mem_str)
+                    header = self.query_one(HeaderBar)
+                    header.update_system_stats(cpu, mem_str)
                 except Exception:
                     pass
 
-                # Update header for the active session
-                if session.id == self._active_session_id:
-                    header = self.query_one(HeaderBar)
-                    header.update_system_stats(cpu, mem_str)
-            except Exception:
-                pass
+    # ------------------------------------------------------------------
+    # Tmux health check
+    # ------------------------------------------------------------------
+
+    def _start_tmux_health_check(self) -> None:
+        """Periodically verify tmux sessions are still alive."""
+        if not (self._start_in_tmux and self._tmux_available):
+            return
+        self.set_interval(30.0, self._check_tmux_health, name="tmux_health")
+
+    async def _check_tmux_health(self) -> None:
+        """Check each tmux-backed session is still alive."""
+        loop = asyncio.get_running_loop()
+        for session in self._session_manager.list_sessions():
+            tmux_name = session.metadata.get("tmux_session_name")
+            if not tmux_name:
+                continue
+            if session.status in (SessionState.DONE, SessionState.ERROR):
+                continue
+            alive = await loop.run_in_executor(
+                None, self._tmux_session_alive, str(tmux_name)
+            )
+            if not alive:
+                log.warning("Tmux session %r gone — marking EXITED", tmux_name)
+                self._session_manager.mark_session_exited(session.id)
+
+    @staticmethod
+    def _tmux_session_alive(tmux_name: str) -> bool:
+        proc = subprocess.run(
+            ["tmux", "has-session", "-t", tmux_name],
+            capture_output=True,
+            check=False,
+        )
+        return proc.returncode == 0
 
     # ------------------------------------------------------------------
     # Cleanup

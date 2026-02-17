@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from typing import Iterator
 
 
 class OutputBuffer:
@@ -43,6 +44,13 @@ class OutputBuffer:
                 text = self._partial
             return text
         return ""
+
+    def search_lines(self, query: str) -> Iterator[tuple[int, str]]:
+        """Yield (line_number, line_text) for lines containing query (case-insensitive)."""
+        query_lower = query.lower()
+        for i, line in enumerate(self._lines):
+            if query_lower in line.lower():
+                yield (i, line)
 
     def clear(self) -> None:
         self._lines.clear()

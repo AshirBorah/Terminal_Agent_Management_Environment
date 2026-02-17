@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from .models import NotificationEvent
+from .models import EventType, NotificationEvent
 
 
 class NotificationHistory:
@@ -18,6 +18,12 @@ class NotificationHistory:
 
     def get_all(self) -> list[NotificationEvent]:
         return list(self._events)
+
+    def get_by_session(self, session_id: str) -> list[NotificationEvent]:
+        return [e for e in self._events if e.session_id == session_id]
+
+    def get_by_type(self, event_type: EventType) -> list[NotificationEvent]:
+        return [e for e in self._events if e.event_type == event_type]
 
     def clear(self) -> None:
         self._events.clear()

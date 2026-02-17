@@ -71,3 +71,27 @@ class GroupToggled(Message):
         super().__init__()
         self.group = group
         self.collapsed = collapsed
+
+
+class SearchQueryChanged(Message):
+    """In-session search query text changed."""
+
+    def __init__(self, query: str, is_regex: bool = False) -> None:
+        super().__init__()
+        self.query = query
+        self.is_regex = is_regex
+
+
+class SearchNavigate(Message):
+    """Navigate to next/previous in-session search match."""
+
+    def __init__(self, forward: bool = True) -> None:
+        super().__init__()
+        self.forward = forward
+
+
+class SearchDismissed(Message):
+    """In-session search bar was dismissed."""
+
+    def __init__(self) -> None:
+        super().__init__()

@@ -8,8 +8,10 @@ from .group_dialog import GroupDialog
 from .header_bar import HeaderBar
 from .history_picker import HistoryPicker
 from .name_dialog import NameDialog
+from .notification_panel import NotificationPanel
 from .search_dialog import SearchDialog
 from .session_list_item import SessionListItem
+from .session_search_bar import SessionSearchBar
 from .session_sidebar import SessionSidebar
 from .session_viewer import SessionViewer
 from .status_bar import StatusBar
@@ -24,8 +26,10 @@ __all__ = [
     "HeaderBar",
     "HistoryPicker",
     "NameDialog",
+    "NotificationPanel",
     "SearchDialog",
     "SessionListItem",
+    "SessionSearchBar",
     "SessionSidebar",
     "SessionViewer",
     "StatusBar",

@@ -219,6 +219,11 @@ class SessionManager:
                 session.pty_process.terminate()
                 self._set_process_state(session, ProcessState.EXITED)
 
+    def mark_session_exited(self, session_id: str) -> None:
+        """Externally mark a session as EXITED (e.g. tmux session gone)."""
+        session = self._get(session_id)
+        self._set_process_state(session, ProcessState.EXITED)
+
     # ------------------------------------------------------------------
     # I/O
     # ------------------------------------------------------------------
