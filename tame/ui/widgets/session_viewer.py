@@ -546,7 +546,7 @@ class SessionViewer(Widget):
             query_lower = query.lower()
 
         for y in range(rows):
-            row = screen.buffer.get(y, {})
+            row: dict = screen.buffer.get(y, {})
             line_chars = []
             for x in range(cols):
                 char = row.get(x)
