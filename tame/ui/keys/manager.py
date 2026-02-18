@@ -14,6 +14,8 @@ DEFAULT_KEYBINDINGS: dict[str, str] = {
     "resume_all": "f7",
     "pause_all": "f8",
     "toggle_sidebar": "f6",
+    "show_diff": "f10",
+    "set_group": "f11",
     "focus_search": "shift+tab",
     "focus_input": "ctrl+l",
     "toggle_theme": "ctrl+t",
