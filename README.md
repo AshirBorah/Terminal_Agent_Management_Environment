@@ -86,15 +86,38 @@ Displayed in the header bar; press `u` in the command palette to check.
 
 ## Installation
 
+### Recommended: `uv tool install`
+
+Install TAME as a standalone CLI tool — no clone needed:
+
+```bash
+uv tool install git+https://github.com/AshirBorah/linux_agent_manager.git
+```
+
+Then run from anywhere:
+
+```bash
+tame
+```
+
+To update to the latest version:
+
+```bash
+uv tool upgrade tame
+```
+
+### Alternative: pip
+
+```bash
+pip install git+https://github.com/AshirBorah/linux_agent_manager.git
+```
+
+### From source (for development)
+
 ```bash
 git clone https://github.com/AshirBorah/linux_agent_manager.git
 cd linux_agent_manager
 uv sync
-```
-
-## Usage
-
-```bash
 uv run tame
 ```
 
