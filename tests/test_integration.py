@@ -28,8 +28,8 @@ def _make_app(tmp_path) -> TAMEApp:
     """Create a TAMEApp with a temp config that won't spawn real tmux."""
     config_file = tmp_path / "config.toml"
     config_file.write_text(
-        '[sessions]\nstart_in_tmux = false\nrestore_tmux_sessions_on_startup = false\n'
-        '[notifications]\nenabled = true\n'
+        "[sessions]\nstart_in_tmux = false\nrestore_tmux_sessions_on_startup = false\n"
+        "[notifications]\nenabled = true\n"
     )
     return TAMEApp(config_path=str(config_file))
 
@@ -71,7 +71,7 @@ class TestConfigResilience:
     async def test_app_starts_with_negative_values(self, tmp_path):
         config_file = tmp_path / "config.toml"
         config_file.write_text(
-            '[sessions]\nidle_threshold_seconds = -100\nresource_poll_seconds = -5\n'
+            "[sessions]\nidle_threshold_seconds = -100\nresource_poll_seconds = -5\n"
         )
         app = TAMEApp(config_path=str(config_file))
         async with app.run_test():

@@ -105,8 +105,9 @@ class SessionManager:
         session_id = uuid.uuid4().hex
 
         pty_proc = PTYProcess()
-        pty_proc.start(shell=shell, cwd=working_dir, command=command,
-                       rows=rows, cols=cols)
+        pty_proc.start(
+            shell=shell, cwd=working_dir, command=command, rows=rows, cols=cols
+        )
 
         # Merge base patterns with profile-specific patterns
         session_patterns = dict(self._patterns)
@@ -283,7 +284,9 @@ class SessionManager:
             self._utf8_decoders.pop(session_id, None)
         return text
 
-    def _process_output_text(self, session_id: str, session: Session, text: str) -> None:
+    def _process_output_text(
+        self, session_id: str, session: Session, text: str
+    ) -> None:
         session.output_buffer.append_data(text)
         session.last_activity = datetime.now(timezone.utc)
         self._reset_idle_timer(session_id)
@@ -558,12 +561,14 @@ class SessionManager:
         if deadline <= 0:
             return False
         import time as _time
+
         return _time.monotonic() < deadline
 
     def _stamp_debounce(self, session_id: str) -> None:
         """Record a debounce window after a state change."""
         if self._state_debounce_seconds > 0:
             import time as _time
+
             self._debounce_until[session_id] = (
                 _time.monotonic() + self._state_debounce_seconds
             )
@@ -580,10 +585,7 @@ class SessionManager:
             )
             return
         # Debounce non-priority transitions
-        if (
-            new_ps not in PRIORITY_PROCESS_STATES
-            and self._is_debounced(session.id)
-        ):
+        if new_ps not in PRIORITY_PROCESS_STATES and self._is_debounced(session.id):
             return
         old_status = session.status
         session.process_state = new_ps
@@ -605,10 +607,7 @@ class SessionManager:
             )
             return
         # Debounce non-priority transitions
-        if (
-            new_as not in PRIORITY_ATTENTION_STATES
-            and self._is_debounced(session.id)
-        ):
+        if new_as not in PRIORITY_ATTENTION_STATES and self._is_debounced(session.id):
             return
         old_status = session.status
         session.attention_state = new_as

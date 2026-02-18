@@ -50,7 +50,9 @@ def git_diff(
             timeout=10,
         )
     except Exception as exc:
-        return DiffResult(diff_text="", files_changed=0, insertions=0, deletions=0, error=str(exc))
+        return DiffResult(
+            diff_text="", files_changed=0, insertions=0, deletions=0, error=str(exc)
+        )
 
     if proc.returncode != 0:
         return DiffResult(

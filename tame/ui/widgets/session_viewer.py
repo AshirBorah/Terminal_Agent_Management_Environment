@@ -19,6 +19,7 @@ log = logging.getLogger("tame.viewer")
 try:
     import pyte
     from pyte.screens import StaticDefaultDict
+
     _PYTE_IMPORT_ERROR: Exception | None = None
 except Exception as exc:  # pragma: no cover - fallback for environments missing pyte
     pyte = None  # type: ignore[assignment]
@@ -155,7 +156,12 @@ class TAMEScreen(pyte.HistoryScreen):
         if self._alt_active:
             return
         self._alt_active = True
-        log.debug("Entering alt screen (save_cursor=%s, %dx%d)", save_cursor, self.lines, self.columns)
+        log.debug(
+            "Entering alt screen (save_cursor=%s, %dx%d)",
+            save_cursor,
+            self.lines,
+            self.columns,
+        )
 
         if save_cursor:
             self._save_cursor()
@@ -172,7 +178,12 @@ class TAMEScreen(pyte.HistoryScreen):
         if not self._alt_active:
             return
         self._alt_active = False
-        log.debug("Exiting alt screen (restore_cursor=%s, %dx%d)", restore_cursor, self.lines, self.columns)
+        log.debug(
+            "Exiting alt screen (restore_cursor=%s, %dx%d)",
+            restore_cursor,
+            self.lines,
+            self.columns,
+        )
 
         # O(1) reference restore
         self.buffer = self._saved_buffer  # type: ignore[assignment]
@@ -241,7 +252,9 @@ class SessionViewer(Widget):
         self._dirty: bool = False
         self._refresh_timer: Timer | None = None
         # In-session search state
-        self._search_matches: list[tuple[int, int, int]] = []  # (row, start_col, end_col)
+        self._search_matches: list[
+            tuple[int, int, int]
+        ] = []  # (row, start_col, end_col)
         self._current_match_idx: int = -1
 
     def append_output(self, text: str) -> None:
@@ -482,9 +495,7 @@ class SessionViewer(Widget):
     # In-session search
     # ------------------------------------------------------------------
 
-    def set_search_highlights(
-        self, query: str, is_regex: bool = False
-    ) -> int:
+    def set_search_highlights(self, query: str, is_regex: bool = False) -> int:
         """Find matches in the current screen buffer and return match count."""
         self._search_matches = []
         self._current_match_idx = -1
@@ -653,7 +664,9 @@ class SessionViewer(Widget):
                     cell_key = (y, x)
                     if cell_key in highlight_cells:
                         if highlight_cells[cell_key]:
-                            style += Style(bgcolor="dark_orange3", color="white", bold=True)
+                            style += Style(
+                                bgcolor="dark_orange3", color="white", bold=True
+                            )
                         else:
                             style += Style(bgcolor="yellow", color="black")
                     if style == run_style:

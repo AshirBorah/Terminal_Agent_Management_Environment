@@ -74,7 +74,9 @@ class ConfigManager:
                 if value < floor:
                     log.warning(
                         "Config key %r has invalid value %s, clamping to %s",
-                        key, value, floor,
+                        key,
+                        value,
+                        floor,
                     )
                     config[key] = floor
 
@@ -97,7 +99,10 @@ class ConfigManager:
                     except re.error as exc:
                         log.warning(
                             "Invalid regex in patterns.%s.%s: %r (%s) — skipping",
-                            category, list_key, pattern, exc,
+                            category,
+                            list_key,
+                            pattern,
+                            exc,
                         )
                 cat_cfg[list_key] = valid
 

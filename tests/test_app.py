@@ -465,7 +465,9 @@ def test_non_redraw_chunk_still_batches(tmp_path, monkeypatch) -> None:
     assert app._output_flush_timer is not None
 
 
-def test_flush_pending_output_uses_tmux_snapshot_for_active(tmp_path, monkeypatch) -> None:
+def test_flush_pending_output_uses_tmux_snapshot_for_active(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     app = TAMEApp()

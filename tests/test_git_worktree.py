@@ -19,9 +19,7 @@ branch refs/heads/feat/login
 
 @patch("tame.git.worktree.subprocess.run")
 def test_list_worktrees_parses_porcelain(mock_run: MagicMock) -> None:
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout=PORCELAIN_OUTPUT
-    )
+    mock_run.return_value = MagicMock(returncode=0, stdout=PORCELAIN_OUTPUT)
     result = list_worktrees("/repo")
     assert len(result) == 2
     assert result[0].path == "/home/user/project"

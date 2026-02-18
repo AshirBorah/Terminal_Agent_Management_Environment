@@ -66,9 +66,7 @@ BROAD_RATE_LIMIT_PATTERNS = {
 REFINED_RATE_LIMIT_PATTERN = (
     r"(?i)rate.?limit(?:ed|ing)?(?:\s+(?:exceeded|reached|hit)|\s*[:\-])"
 )
-REDRAW_CONTROL_RE = re.compile(
-    r"\x1b\[[0-9;?]*(?:[ABCDHfJK])|\x1bc|\x0c|\r(?!\n)"
-)
+REDRAW_CONTROL_RE = re.compile(r"\x1b\[[0-9;?]*(?:[ABCDHfJK])|\x1bc|\x0c|\r(?!\n)")
 SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 
 SPECIAL_KEY_SEQUENCES: dict[str, str] = {
@@ -182,9 +180,15 @@ class TAMEApp(App):
     BINDINGS = [
         Binding("ctrl+c", "send_sigint", "Send SIGINT", show=False, priority=True),
         Binding("ctrl+d", "send_eof", "Send EOF", show=False, priority=True),
-        Binding("ctrl+f", "session_search", "Search in Session", show=False, priority=True),
-        Binding("ctrl+shift+f", "global_search", "Global Search", show=False, priority=True),
-        Binding("f5", "notification_history", "Notification Log", show=True, priority=False),
+        Binding(
+            "ctrl+f", "session_search", "Search in Session", show=False, priority=True
+        ),
+        Binding(
+            "ctrl+shift+f", "global_search", "Global Search", show=False, priority=True
+        ),
+        Binding(
+            "f5", "notification_history", "Notification Log", show=True, priority=False
+        ),
         Binding("tab", "send_tab", "Tab Complete", show=False, priority=True),
     ]
 
@@ -280,7 +284,9 @@ class TAMEApp(App):
         self._worktrees_enabled = bool(git_cfg.get("worktrees_enabled", False))
         git_repo_dir = str(git_cfg.get("repo_dir", "")).strip()
         self._git_repo_dir = (
-            os.path.expanduser(git_repo_dir) if git_repo_dir else self._default_working_dir
+            os.path.expanduser(git_repo_dir)
+            if git_repo_dir
+            else self._default_working_dir
         )
 
         self._active_session_id: str | None = None
@@ -548,9 +554,7 @@ class TAMEApp(App):
         if branch and self._worktrees_enabled:
             from tame.git.worktree import create_worktree
 
-            wt_path, err = create_worktree(
-                self._git_repo_dir, branch, new_branch=True
-            )
+            wt_path, err = create_worktree(self._git_repo_dir, branch, new_branch=True)
             if err:
                 # Try attaching to existing branch
                 wt_path, err = create_worktree(
@@ -730,7 +734,9 @@ class TAMEApp(App):
 
     def action_set_group(self) -> None:
         """Open a dialog to assign the active session to a group."""
-        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette, GroupDialog)):
+        if isinstance(
+            self.screen, (NameDialog, ConfirmDialog, CommandPalette, GroupDialog)
+        ):
             return
         if self._active_session_id is None:
             return
@@ -879,7 +885,9 @@ class TAMEApp(App):
 
     def action_global_search(self) -> None:
         """Open a global search dialog across all session output buffers."""
-        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette, SearchDialog)):
+        if isinstance(
+            self.screen, (NameDialog, ConfirmDialog, CommandPalette, SearchDialog)
+        ):
             return
         sessions_data: list[tuple[str, str, str]] = []
         for session in self._session_manager.list_sessions():
@@ -897,7 +905,9 @@ class TAMEApp(App):
 
     def action_show_diff(self) -> None:
         """Show git diff for the active session's working directory."""
-        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette, DiffViewer)):
+        if isinstance(
+            self.screen, (NameDialog, ConfirmDialog, CommandPalette, DiffViewer)
+        ):
             return
         if self._active_session_id is None:
             return
@@ -906,6 +916,7 @@ class TAMEApp(App):
         except KeyError:
             return
         from tame.git.diff import git_diff
+
         result = git_diff(session.working_dir)
         self.push_screen(DiffViewer(result, title=f"Diff: {session.name}"))
 
@@ -921,7 +932,9 @@ class TAMEApp(App):
 
     def action_notification_history(self) -> None:
         """Open the notification history panel."""
-        if isinstance(self.screen, (NameDialog, ConfirmDialog, CommandPalette, NotificationPanel)):
+        if isinstance(
+            self.screen, (NameDialog, ConfirmDialog, CommandPalette, NotificationPanel)
+        ):
             return
         history = self._notification_engine.get_history()
         self.push_screen(
@@ -1062,9 +1075,8 @@ class TAMEApp(App):
             return
         # Redraw-heavy control chunks (cursor movement / clear / CR redraw)
         # are latency-sensitive and can artifact if delayed behind batching.
-        if (
-            session_id == self._active_session_id
-            and self._is_redraw_control_chunk(text)
+        if session_id == self._active_session_id and self._is_redraw_control_chunk(
+            text
         ):
             if self._output_flush_timer is not None:
                 self._output_flush_timer.stop()
@@ -1291,10 +1303,18 @@ class TAMEApp(App):
                     continue
                 # Strip extended background color sequences: 48;5;N / 48;2;R;G;B.
                 if code == 48:
-                    if i + 1 < len(parts) and parts[i + 1] == "5" and i + 2 < len(parts):
+                    if (
+                        i + 1 < len(parts)
+                        and parts[i + 1] == "5"
+                        and i + 2 < len(parts)
+                    ):
                         i += 3
                         continue
-                    if i + 1 < len(parts) and parts[i + 1] == "2" and i + 4 < len(parts):
+                    if (
+                        i + 1 < len(parts)
+                        and parts[i + 1] == "2"
+                        and i + 4 < len(parts)
+                    ):
                         i += 5
                         continue
                     i += 1
@@ -1455,9 +1475,7 @@ class TAMEApp(App):
 
         for session_id, cpu, mem_str in results:
             try:
-                item = self.query_one(
-                    f"#session-item-{session_id}", SessionListItem
-                )
+                item = self.query_one(f"#session-item-{session_id}", SessionListItem)
                 item.update_resources(cpu, mem_str)
             except Exception:
                 pass

@@ -15,7 +15,9 @@ from tame.ui.widgets.session_viewer import SessionViewer, _TerminalState  # noqa
 # ---------------------------------------------------------------------------
 
 
-def _make_viewer_with_content(lines: list[str], rows: int = 24, cols: int = 80) -> SessionViewer:
+def _make_viewer_with_content(
+    lines: list[str], rows: int = 24, cols: int = 80
+) -> SessionViewer:
     """Create a SessionViewer with pyte terminal loaded with given lines."""
     viewer = SessionViewer()
     viewer._rows = rows
@@ -49,7 +51,9 @@ class TestFindMatches:
         assert len(matches) == 2
 
     def test_regex_match(self):
-        viewer = _make_viewer_with_content(["error: something", "warning: other", "error: again"])
+        viewer = _make_viewer_with_content(
+            ["error: something", "warning: other", "error: again"]
+        )
         matches = viewer._find_matches_in_screen(r"error:\s+\w+", True)
         assert len(matches) == 2
 
