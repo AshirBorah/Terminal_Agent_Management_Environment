@@ -14,7 +14,7 @@ TAME does **not** launch or orchestrate agents. You create PTY-backed shell sess
 
 ```bash
 # Install
-uv tool install git+https://github.com/AshirBorah/linux_agent_manager.git
+uv tool install git+https://github.com/AshirBorah/Terminal_Agent_Management_Environment.git
 
 # Launch
 tame
