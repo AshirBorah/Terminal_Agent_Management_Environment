@@ -161,6 +161,7 @@ class TAMEApp(App):
         "pause_all": ("Pause All", False, False),
         "show_diff": ("Git Diff", False, False),
         "set_group": ("Set Group", False, False),
+        "focus_search": ("Focus Search", False, False),
         "quit": ("Quit", True, False),
         "session_1": ("Session 1", False, False),
         "session_2": ("Session 2", False, False),
@@ -438,9 +439,9 @@ class TAMEApp(App):
             self.action_new_session()
 
     def on_resize(self, event: events.Resize) -> None:
-        pass  # PTY resize now handled by _on_viewer_resized
+        pass  # PTY resize now handled by on_viewer_resized
 
-    def _on_viewer_resized(self, message: ViewerResized) -> None:
+    def on_viewer_resized(self, message: ViewerResized) -> None:
         if self._active_session_id is None:
             return
         try:
@@ -489,7 +490,10 @@ class TAMEApp(App):
         elif len(pty_input) == 1 and pty_input.isprintable():
             self._input_line_buffer.setdefault(sid, []).append(pty_input)
 
-        self._session_manager.send_input(self._active_session_id, pty_input)
+        try:
+            self._session_manager.send_input(self._active_session_id, pty_input)
+        except OSError:
+            log.debug("Send to dead session %s ignored", self._active_session_id)
         event.stop()
 
     # ------------------------------------------------------------------
@@ -745,8 +749,6 @@ class TAMEApp(App):
         if tmux_name:
             new_tmux = self._build_tmux_session_name(new_name)
             if new_tmux:
-                import subprocess
-
                 subprocess.run(
                     ["tmux", "rename-session", "-t", tmux_name, new_tmux],
                     capture_output=True,
