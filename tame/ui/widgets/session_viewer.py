@@ -453,12 +453,18 @@ class SessionViewer(Widget):
         version = f"v{__version__}"
         shortcuts = [
             ("Ctrl+Space", "Open Command Palette"),
-            ("  c", "New Session"),
-            ("  d", "Delete Session"),
-            ("  n / p", "Next / Prev Session"),
-            ("  s", "Toggle Sidebar"),
-            ("  q", "Quit"),
+            ("c", "New Session"),
+            ("d", "Delete Session"),
+            ("n / p", "Next / Prev Session"),
+            ("s", "Toggle Sidebar"),
+            ("q", "Quit"),
         ]
+
+        # Pre-build shortcut lines so we can center them as a block
+        shortcut_lines: list[str] = []
+        for key, action in shortcuts:
+            shortcut_lines.append(f"  {key:>12}   {action}")
+        block_width = max(len(line) for line in shortcut_lines)
 
         lines: list[str] = []
         # vertical centering
@@ -476,10 +482,10 @@ class SessionViewer(Widget):
         lines.append(version.center(w))
         lines.append("")
 
-        # shortcuts
-        for key, action in shortcuts:
-            entry = f"  {key:<16}{action}"
-            lines.append(entry.center(w))
+        # shortcuts — center the block, not each line independently
+        block_pad = max(0, (w - block_width) // 2)
+        for line in shortcut_lines:
+            lines.append(" " * block_pad + line)
 
         lines.append("")
         hint = "Tame your AI agents."

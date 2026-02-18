@@ -13,7 +13,7 @@ class StatusBar(Static):
         background: $primary-background;
         color: $text;
         padding: 0 1;
-        content-align: left middle;
+        content-align: center middle;
     }
     """
 
