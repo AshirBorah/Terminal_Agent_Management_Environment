@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from tame.session.manager import SessionManager
 from tame.session.output_buffer import OutputBuffer

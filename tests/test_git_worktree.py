@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from unittest.mock import patch, MagicMock
-import subprocess
 
-from tame.git.worktree import Worktree, list_worktrees, create_worktree, remove_worktree
+from tame.git.worktree import list_worktrees, create_worktree, remove_worktree
 
 
 PORCELAIN_OUTPUT = """\

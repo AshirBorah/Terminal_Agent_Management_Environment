@@ -7,7 +7,7 @@ import pytest
 # Skip entire module when pyte is not available
 pyte = pytest.importorskip("pyte")
 
-from tame.ui.widgets.session_viewer import SessionViewer, _TerminalState
+from tame.ui.widgets.session_viewer import SessionViewer, _TerminalState  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

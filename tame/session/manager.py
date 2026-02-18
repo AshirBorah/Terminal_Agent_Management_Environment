@@ -9,8 +9,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable
 
-log = logging.getLogger(__name__)
-
 from tame.config.defaults import get_default_patterns_flat, get_profile_patterns
 
 from .output_buffer import OutputBuffer
@@ -26,6 +24,8 @@ from .state import (
     is_valid_attention_transition,
     is_valid_process_transition,
 )
+
+log = logging.getLogger(__name__)
 
 # Built-in usage patterns for common AI CLIs
 _USAGE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [

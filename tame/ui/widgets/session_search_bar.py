@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.reactive import reactive
@@ -71,7 +69,7 @@ class SessionSearchBar(Widget):
         self.post_message(SearchDismissed())
 
     @property
-    def visible(self) -> bool:
+    def visible(self) -> bool:  # type: ignore[override]
         return self.has_class("visible")
 
     def update_match_count(self, current: int, total: int) -> None:

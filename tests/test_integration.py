@@ -5,15 +5,10 @@ These tests exercise multi-widget interactions using Textual's async pilot.
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
-from textual.pilot import Pilot
 
 from tame.app import TAMEApp
 from tame.notifications.models import EventType
-from tame.session.state import SessionState
 from tame.ui.widgets import (
     HeaderBar,
     NotificationPanel,
@@ -48,15 +43,15 @@ class TestSessionLifecycle:
     @pytest.mark.asyncio
     async def test_app_starts_with_no_sessions(self, tmp_path):
         app = _make_app(tmp_path)
-        async with app.run_test() as pilot:
-            status_bar = app.query_one(StatusBar)
+        async with app.run_test():
+            _status_bar = app.query_one(StatusBar)  # verify widget exists
             # No sessions yet
             assert app._active_session_id is None
 
     @pytest.mark.asyncio
     async def test_session_search_bar_hidden_by_default(self, tmp_path):
         app = _make_app(tmp_path)
-        async with app.run_test() as pilot:
+        async with app.run_test():
             search_bar = app.query_one(SessionSearchBar)
             assert not search_bar.has_class("visible")
 
@@ -67,7 +62,7 @@ class TestConfigResilience:
         config_file = tmp_path / "config.toml"
         config_file.write_text("this is [[[broken toml")
         app = TAMEApp(config_path=str(config_file))
-        async with app.run_test() as pilot:
+        async with app.run_test():
             # App should start without crashing
             assert app.query_one(SessionViewer) is not None
             assert app.query_one(SessionSidebar) is not None
@@ -79,7 +74,7 @@ class TestConfigResilience:
             '[sessions]\nidle_threshold_seconds = -100\nresource_poll_seconds = -5\n'
         )
         app = TAMEApp(config_path=str(config_file))
-        async with app.run_test() as pilot:
+        async with app.run_test():
             assert app.query_one(HeaderBar) is not None
 
 

@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
-
-import pytest
-
 from tame.config.defaults import DEFAULT_CONFIG
 from tame.config.manager import ConfigManager
 
