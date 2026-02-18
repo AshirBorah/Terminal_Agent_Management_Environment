@@ -403,10 +403,7 @@ def test_prompt_then_error_in_same_chunk_yields_error() -> None:
     """When prompt appears before error in the same chunk, error wins."""
     manager, session, transitions = _make_manager_with_session()
 
-    chunk = (
-        b"Continue? [y/n]\n"
-        b"Traceback (most recent call last)\n"
-    )
+    chunk = b"Continue? [y/n]\nTraceback (most recent call last)\n"
     manager._on_session_output(session.id, chunk)
     assert session.status is SessionState.ERROR
     assert session.attention_state is AttentionState.ERROR_SEEN

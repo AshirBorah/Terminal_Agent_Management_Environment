@@ -40,12 +40,8 @@ class SessionState(Enum):
 # Valid state transitions for ProcessState
 VALID_PROCESS_TRANSITIONS: dict[ProcessState, frozenset[ProcessState]] = {
     ProcessState.STARTING: frozenset({ProcessState.RUNNING, ProcessState.EXITED}),
-    ProcessState.RUNNING: frozenset(
-        {ProcessState.PAUSED, ProcessState.EXITED}
-    ),
-    ProcessState.PAUSED: frozenset(
-        {ProcessState.RUNNING, ProcessState.EXITED}
-    ),
+    ProcessState.RUNNING: frozenset({ProcessState.PAUSED, ProcessState.EXITED}),
+    ProcessState.PAUSED: frozenset({ProcessState.RUNNING, ProcessState.EXITED}),
     ProcessState.EXITED: frozenset(),  # terminal state
 }
 
@@ -70,14 +66,10 @@ PRIORITY_ATTENTION_STATES: frozenset[AttentionState] = frozenset(
     {AttentionState.ERROR_SEEN, AttentionState.NEEDS_INPUT}
 )
 
-PRIORITY_PROCESS_STATES: frozenset[ProcessState] = frozenset(
-    {ProcessState.EXITED}
-)
+PRIORITY_PROCESS_STATES: frozenset[ProcessState] = frozenset({ProcessState.EXITED})
 
 
-def is_valid_process_transition(
-    current: ProcessState, target: ProcessState
-) -> bool:
+def is_valid_process_transition(current: ProcessState, target: ProcessState) -> bool:
     """Check whether a ProcessState transition is allowed."""
     return target in VALID_PROCESS_TRANSITIONS.get(current, frozenset())
 

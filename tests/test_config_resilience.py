@@ -18,7 +18,10 @@ class TestInvalidToml:
         mgr = ConfigManager(config_path=str(config_file))
         cfg = mgr.load()
         # Should fall back to defaults without crashing
-        assert cfg.get("general", {}).get("log_level") == DEFAULT_CONFIG["general"]["log_level"]
+        assert (
+            cfg.get("general", {}).get("log_level")
+            == DEFAULT_CONFIG["general"]["log_level"]
+        )
 
     def test_empty_file_uses_defaults(self, tmp_path):
         config_file = tmp_path / "config.toml"
@@ -47,21 +50,21 @@ class TestInvalidToml:
 class TestNumericClamping:
     def test_negative_idle_threshold_clamped(self, tmp_path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text('[sessions]\nidle_threshold_seconds = -100\n')
+        config_file.write_text("[sessions]\nidle_threshold_seconds = -100\n")
         mgr = ConfigManager(config_path=str(config_file))
         cfg = mgr.load()
         assert cfg["sessions"]["idle_threshold_seconds"] >= 0
 
     def test_negative_volume_clamped(self, tmp_path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text('[notifications.audio]\nvolume = -0.5\n')
+        config_file.write_text("[notifications.audio]\nvolume = -0.5\n")
         mgr = ConfigManager(config_path=str(config_file))
         cfg = mgr.load()
         assert cfg["notifications"]["audio"]["volume"] >= 0
 
     def test_negative_resource_poll_clamped(self, tmp_path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text('[sessions]\nresource_poll_seconds = -5\n')
+        config_file.write_text("[sessions]\nresource_poll_seconds = -5\n")
         mgr = ConfigManager(config_path=str(config_file))
         cfg = mgr.load()
         assert cfg["sessions"]["resource_poll_seconds"] >= 1
@@ -76,8 +79,7 @@ class TestInvalidRegex:
     def test_invalid_regex_skipped(self, tmp_path):
         config_file = tmp_path / "config.toml"
         config_file.write_text(
-            '[patterns.error]\n'
-            'regexes = ["[invalid_regex", "valid_pattern"]\n'
+            '[patterns.error]\nregexes = ["[invalid_regex", "valid_pattern"]\n'
         )
         mgr = ConfigManager(config_path=str(config_file))
         cfg = mgr.load()
@@ -87,10 +89,7 @@ class TestInvalidRegex:
 
     def test_all_invalid_regexes_results_in_empty_list(self, tmp_path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            '[patterns.prompt]\n'
-            'regexes = ["[bad1", "[bad2"]\n'
-        )
+        config_file.write_text('[patterns.prompt]\nregexes = ["[bad1", "[bad2"]\n')
         mgr = ConfigManager(config_path=str(config_file))
         cfg = mgr.load()
         assert cfg["patterns"]["prompt"]["regexes"] == []

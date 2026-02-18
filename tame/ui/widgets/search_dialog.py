@@ -23,7 +23,9 @@ class SearchResult(Static):
     }
     """
 
-    def __init__(self, session_id: str, session_name: str, line: str, line_num: int) -> None:
+    def __init__(
+        self, session_id: str, session_name: str, line: str, line_num: int
+    ) -> None:
         super().__init__()
         self.session_id = session_id
         self._session_name = session_name
@@ -33,7 +35,9 @@ class SearchResult(Static):
     def on_mount(self) -> None:
         # Truncate long lines for display
         display_line = self._line[:120] + "..." if len(self._line) > 120 else self._line
-        self.update(f"[bold]{self._session_name}[/bold]:{self._line_num}  {display_line}")
+        self.update(
+            f"[bold]{self._session_name}[/bold]:{self._line_num}  {display_line}"
+        )
 
     def on_click(self) -> None:
         # Dismiss with the session_id to switch to it

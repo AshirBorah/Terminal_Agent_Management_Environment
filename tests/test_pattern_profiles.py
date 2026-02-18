@@ -88,4 +88,6 @@ def test_all_profiles_have_valid_structure() -> None:
         for cat, cat_cfg in profile_cfg.items():
             assert isinstance(cat_cfg, dict), f"{name}.{cat} is not a dict"
             assert "regexes" in cat_cfg, f"{name}.{cat} missing 'regexes'"
-            assert isinstance(cat_cfg["regexes"], list), f"{name}.{cat}.regexes not list"
+            assert isinstance(cat_cfg["regexes"], list), (
+                f"{name}.{cat}.regexes not list"
+            )

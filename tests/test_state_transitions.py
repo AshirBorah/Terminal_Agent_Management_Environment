@@ -67,7 +67,9 @@ def test_self_transitions_invalid_for_process() -> None:
 
 
 def test_none_can_go_to_needs_input() -> None:
-    assert is_valid_attention_transition(AttentionState.NONE, AttentionState.NEEDS_INPUT)
+    assert is_valid_attention_transition(
+        AttentionState.NONE, AttentionState.NEEDS_INPUT
+    )
 
 
 def test_none_can_go_to_error_seen() -> None:
@@ -79,7 +81,9 @@ def test_none_can_go_to_idle() -> None:
 
 
 def test_needs_input_can_go_to_none() -> None:
-    assert is_valid_attention_transition(AttentionState.NEEDS_INPUT, AttentionState.NONE)
+    assert is_valid_attention_transition(
+        AttentionState.NEEDS_INPUT, AttentionState.NONE
+    )
 
 
 def test_needs_input_can_go_to_error() -> None:
@@ -109,9 +113,7 @@ def test_idle_can_go_to_needs_input() -> None:
 
 
 def test_idle_can_go_to_error_seen() -> None:
-    assert is_valid_attention_transition(
-        AttentionState.IDLE, AttentionState.ERROR_SEEN
-    )
+    assert is_valid_attention_transition(AttentionState.IDLE, AttentionState.ERROR_SEEN)
 
 
 def test_self_transitions_invalid_for_attention() -> None:

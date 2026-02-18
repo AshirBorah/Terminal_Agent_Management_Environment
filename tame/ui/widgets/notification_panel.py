@@ -120,7 +120,10 @@ class NotificationPanel(ModalScreen[str | None]):
                 else:
                     for ev in reversed(events_list):
                         yield NotificationRow(ev)
-            yield Label("Click session name to switch  |  C = Clear  |  Esc = Close", id="notif-footer")
+            yield Label(
+                "Click session name to switch  |  C = Clear  |  Esc = Close",
+                id="notif-footer",
+            )
 
     def key_escape(self) -> None:
         self.dismiss(None)
