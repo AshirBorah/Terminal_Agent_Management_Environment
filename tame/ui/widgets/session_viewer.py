@@ -11,6 +11,7 @@ from textual import events
 from textual.timer import Timer
 from textual.widget import Widget
 
+from tame import __version__
 from tame.session.output_buffer import OutputBuffer
 from tame.ui.events import ViewerResized
 
@@ -449,12 +450,12 @@ class SessionViewer(Widget):
             "  |_/_/ \\_\\_|  |_|___|",
         ]
         subtitle = "Terminal Agent Management Environment"
-        version = "v0.1.0"
+        version = f"v{__version__}"
         shortcuts = [
             ("Ctrl+Space", "Open Command Palette"),
             ("  c", "New Session"),
+            ("  d", "Delete Session"),
             ("  n / p", "Next / Prev Session"),
-            ("  k", "Kill Session"),
             ("  s", "Toggle Sidebar"),
             ("  q", "Quit"),
         ]
