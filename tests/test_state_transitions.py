@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import pytest
-
 from tame.session.state import (
     AttentionState,
     ProcessState,
     PRIORITY_ATTENTION_STATES,
     PRIORITY_PROCESS_STATES,
+    SessionState,
     VALID_ATTENTION_TRANSITIONS,
     VALID_PROCESS_TRANSITIONS,
+    compute_session_state,
     is_valid_attention_transition,
     is_valid_process_transition,
 )
@@ -158,7 +158,6 @@ def test_all_attention_states_have_transition_entry() -> None:
 # ------------------------------------------------------------------
 # Display state derivation edge cases (Phase 3.2)
 # ------------------------------------------------------------------
-from tame.session.state import SessionState, compute_session_state
 
 
 def test_exited_error_seen_yields_error() -> None:

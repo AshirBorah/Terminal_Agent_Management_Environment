@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
-
 from tame.notifications.history import NotificationHistory
 from tame.notifications.models import EventType, NotificationEvent, Priority
 
