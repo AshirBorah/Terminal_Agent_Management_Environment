@@ -149,6 +149,8 @@ class TAMEApp(App):
         "z": "pause_all",
         "u": "check_usage",
         "x": "clear_notifications",
+        "w": "set_group",
+        "v": "show_diff",
         "q": "quit",
     }
 
@@ -648,6 +650,18 @@ class TAMEApp(App):
         if session_id is None:
             return
 
+        # Determine the neighbor to switch to before removing the session
+        sessions = self._session_manager.list_sessions()
+        ids = [s.id for s in sessions]
+        next_session_id: str | None = None
+        try:
+            idx = ids.index(session_id)
+            if len(ids) > 1:
+                # Prefer the next session, fall back to previous
+                next_session_id = ids[idx + 1] if idx + 1 < len(ids) else ids[idx - 1]
+        except ValueError:
+            pass
+
         # Clean up git worktree if one was created for this session
         try:
             session = self._session_manager.get_session(session_id)
@@ -674,10 +688,9 @@ class TAMEApp(App):
         sidebar.remove_session(session_id)
         viewer.remove_session(session_id)
 
-        # Switch to the next available session or clear
-        sessions = self._session_manager.list_sessions()
-        if sessions:
-            self._select_session(sessions[0].id)
+        # Switch to the nearest neighbor or clear
+        if next_session_id is not None:
+            self._select_session(next_session_id)
         else:
             self._active_session_id = None
             header = self.query_one(HeaderBar)

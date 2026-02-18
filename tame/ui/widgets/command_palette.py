@@ -25,6 +25,8 @@ COMMAND_ENTRIES: list[tuple[str, str, str]] = [
     ("z", "pause_all", "Pause All"),
     ("u", "check_usage", "Check Usage"),
     ("x", "clear_notifications", "Clear Notifications"),
+    ("w", "set_group", "Set Group"),
+    ("v", "show_diff", "Git Diff"),
     ("q", "quit", "Quit"),
 ]
 

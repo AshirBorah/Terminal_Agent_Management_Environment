@@ -34,7 +34,7 @@ class GroupHeader(Static):
         self._render_label()
 
     def _render_label(self) -> None:
-        arrow = ">" if self._collapsed else "v"
+        arrow = "▶" if self._collapsed else "▼"
         self.update(f"{arrow} {self._group_name}")
 
     @property
@@ -120,7 +120,16 @@ class SessionSidebar(Vertical):
             header = GroupHeader(group)
             header.id = header_id
             scroll = self.query_one("#session-scroll", VerticalScroll)
-            scroll.mount(header, before=0)
+            # Find the first session in this group to insert the header before it
+            first_in_group = None
+            for item in scroll.query(SessionListItem):
+                if item.has_class(f"group-{group}"):
+                    first_in_group = item
+                    break
+            if first_in_group is not None:
+                scroll.mount(header, before=first_in_group)
+            else:
+                scroll.mount(header)
 
     def remove_session(self, session_id: str) -> None:
         """Remove a session item by its session_id."""

@@ -34,7 +34,7 @@ Screen {
 }
 
 .session-item:hover {
-    background: #073642;
+    background: #0a4a5c;
 }
 
 .session-item.--highlight {
