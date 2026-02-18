@@ -6,6 +6,27 @@ An intelligent terminal multiplexer for managing multiple parallel AI agent sess
 
 TAME does **not** launch or orchestrate agents. You create PTY-backed shell sessions and run whatever CLI agent you want (`claude`, `codex`, `aider`, `gemini`, a custom script, etc.). TAME monitors the PTY output of each session using configurable regex patterns and notifies you when something needs your attention.
 
+<!-- TODO: Add a screenshot or demo GIF here — a single visual of the TUI
+     with a few sessions running goes a long way for first impressions.
+     Example: ![TAME screenshot](docs/screenshot.png) -->
+
+## Quick start
+
+```bash
+# Install
+uv tool install git+https://github.com/AshirBorah/linux_agent_manager.git
+
+# Launch
+tame
+
+# Inside TAME:
+#   F2          → create a new session
+#   type your command (e.g. "claude", "aider", "codex") and press Enter
+#   F3 / F4     → switch between sessions
+#   Ctrl+Space  → command palette for everything else
+#   F12         → quit
+```
+
 ## Features
 
 ### Session management
@@ -121,6 +142,20 @@ uv sync
 uv run tame
 ```
 
+## Usage
+
+```
+usage: tame [-h] [--config CONFIG] [--theme THEME] [--verbose]
+
+TAME — Terminal Agent Management Environment
+
+options:
+  -h, --help       show this help message and exit
+  --config CONFIG  Path to config file
+  --theme THEME    Override theme (dark, light, dracula, etc.)
+  --verbose        Enable debug logging
+```
+
 ### Key bindings
 
 | Key              | Action              |
@@ -226,10 +261,30 @@ quit = "f12"
 
 See `tame/config/defaults.py` for the full default configuration.
 
+## Publishing to PyPI
+
+This repo includes a GitHub Actions workflow (`.github/workflows/publish.yml`) that publishes to PyPI automatically when you create a GitHub release. To set it up:
+
+1. Create a PyPI account at https://pypi.org
+2. Go to https://pypi.org/manage/account/publishing/ and add a new "pending publisher":
+   - **Owner:** `AshirBorah`
+   - **Repository:** `linux_agent_manager`
+   - **Workflow:** `publish.yml`
+   - **Environment:** *(leave blank)*
+3. Create a GitHub release (e.g. tag `v0.1.0`) — the workflow will build and upload automatically
+
+Once published, users can install with just:
+
+```bash
+uv tool install tame
+# or
+pip install tame
+```
+
 ## Development
 
 ```bash
-uv pip install pytest pytest-asyncio textual-dev   # install dev deps
+uv sync --dev                                       # install all dev deps
 uv run pytest                                       # run all tests
 uv run pytest tests/ -x --tb=short -v               # verbose, stop on first failure
 uv run pytest -k "pattern"                          # run specific tests
