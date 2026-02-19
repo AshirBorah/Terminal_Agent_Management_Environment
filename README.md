@@ -6,9 +6,7 @@ An intelligent terminal multiplexer for managing multiple parallel AI agent sess
 
 TAME does **not** launch or orchestrate agents. You create PTY-backed shell sessions and run whatever CLI agent you want (`claude`, `codex`, `aider`, `gemini`, a custom script, etc.). TAME monitors the PTY output of each session using configurable regex patterns and notifies you when something needs your attention.
 
-<!-- TODO: Add a screenshot or demo GIF here — a single visual of the TUI
-     with a few sessions running goes a long way for first impressions.
-     Example: ![TAME screenshot](docs/screenshot.png) -->
+![TAME screenshot](assets/screenshot.png)
 
 ## Quick start
 
