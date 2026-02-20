@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 from textual import events
 from textual.app import App, ComposeResult
@@ -39,6 +39,9 @@ from tame.ui.widgets import (
     GroupDialog,
     HeaderBar,
     HistoryPicker,
+    MemoryClearDialog,
+    MemoryEnableDialog,
+    MemoryRecallDialog,
     NameDialog,
     NotificationPanel,
     SearchDialog,
@@ -146,6 +149,9 @@ class TAMEApp(App):
         "x": "clear_notifications",
         "w": "set_group",
         "v": "show_diff",
+        "y": "toggle_memory",
+        "a": "recall_memory",
+        "j": "clear_memory",
         "q": "quit",
     }
 
@@ -287,6 +293,10 @@ class TAMEApp(App):
             else self._default_working_dir
         )
 
+        # Letta memory integration (optional)
+        self._memory_bridge = self._init_memory_bridge(cfg)
+        self._memory_ever_enabled = bool(cfg.get("letta", {}).get("enabled", False))
+
         self._active_session_id: str | None = None
         self._pending_status_updates: set[str] = set()
         self._status_update_scheduled: bool = False
@@ -301,6 +311,21 @@ class TAMEApp(App):
 
         # Easter egg: triggers once per app run
         self._easter_egg_shown: bool = False
+
+    def _init_memory_bridge(self, cfg: dict):  # noqa: ANN201
+        """Create the memory bridge. Auto-connects if previously enabled."""
+        from tame.integrations.letta import MemoryBridge
+
+        letta_cfg = cfg.get("letta", {})
+        server_url = str(letta_cfg.get("server_url", "http://localhost:8283"))
+        bridge = MemoryBridge(server_url)
+        if letta_cfg.get("enabled", False):
+            ok, msg = bridge.enable()
+            if ok:
+                log.info("Letta memory bridge enabled: %s", msg)
+            else:
+                log.warning("Letta memory bridge failed to connect: %s", msg)
+        return bridge
 
     def _get_patterns_from_config(self, cfg: dict) -> dict[str, list[str]]:
         patterns_cfg = cfg.get("patterns", {})
@@ -350,6 +375,7 @@ class TAMEApp(App):
         self.call_later(self._restore_tmux_sessions_async)
         self._start_resource_poll()
         self._start_tmux_health_check()
+        self._update_memory_status()
         log.info("TAME started")
 
     # ------------------------------------------------------------------
@@ -367,6 +393,19 @@ class TAMEApp(App):
         self.post_message(
             SessionStatusChanged(session_id, old_state.value, new_state.value)
         )
+        # Record to Letta memory
+        if self._memory_bridge:
+            try:
+                session = self._session_manager.get_session(session_id)
+                session_name = session.name
+            except KeyError:
+                session_name = session_id
+            if new_state == SessionState.ERROR:
+                self._memory_bridge.record_error(session_name, matched_text)
+            else:
+                self._memory_bridge.record_status_change(
+                    session_name, old_state.value, new_state.value, matched_text
+                )
         event_type = EVENT_TYPE_FOR_STATE.get(new_state)
         if event_type:
             session = self._session_manager.get_session(session_id)
@@ -597,6 +636,8 @@ class TAMEApp(App):
         sidebar.add_session(session)
         self._select_session(session.id)
         self._update_status_bar()
+        if self._memory_bridge:
+            self._memory_bridge.record_session_created(session.name, working_dir)
         log.info("Created session %s (%s)", session.name, session.id)
 
     def action_toggle_sidebar(self) -> None:
@@ -690,6 +731,19 @@ class TAMEApp(App):
                     log.info("Removed worktree %s", wt_path)
         except KeyError:
             pass
+
+        # Record session end to Letta memory
+        if self._memory_bridge:
+            try:
+                session = self._session_manager.get_session(session_id)
+                duration = (
+                    datetime.now(timezone.utc) - session.created_at
+                ).total_seconds()
+                self._memory_bridge.record_session_ended(
+                    session.name, session.exit_code, duration
+                )
+            except KeyError:
+                pass
 
         try:
             self._session_manager.delete_session(session_id)
@@ -944,6 +998,104 @@ class TAMEApp(App):
 
         result = git_diff(session.working_dir)
         self.push_screen(DiffViewer(result, title=f"Diff: {session.name}"))
+
+    # ------------------------------------------------------------------
+    # Letta memory actions
+    # ------------------------------------------------------------------
+
+    def action_toggle_memory(self) -> None:
+        """Toggle session memory on/off."""
+        if self._memory_bridge is None:
+            return
+
+        if not self._memory_ever_enabled:
+            # First time — show onboarding dialog
+            from tame.integrations.letta.bridge import _is_letta_installed
+
+            needs_install = not _is_letta_installed()
+            self.push_screen(
+                MemoryEnableDialog(
+                    self._memory_bridge._server_url,
+                    needs_install=needs_install,
+                ),
+                callback=self._handle_memory_enable,
+            )
+        else:
+            # Subsequent toggle — quick on/off
+            new_state, msg = self._memory_bridge.toggle()
+            self._show_toast("Memory", msg)
+            self._update_memory_status()
+
+    def _handle_memory_enable(self, confirmed: bool | None) -> None:
+        if not confirmed or self._memory_bridge is None:
+            return
+        self._show_toast("Memory", "Setting up memory...")
+        self._update_memory_status()
+        self.call_later(self._run_memory_setup)
+
+    async def _run_memory_setup(self) -> None:
+        """Run the full setup (install + server + connect) in an executor."""
+        assert self._memory_bridge is not None
+        loop = asyncio.get_running_loop()
+        ok, msg = await loop.run_in_executor(None, self._memory_bridge.setup)
+        self._show_toast("Memory", msg)
+        if ok:
+            self._memory_ever_enabled = True
+            cfg = self._config_manager.config
+            cfg.setdefault("letta", {})["enabled"] = True
+            self._config_manager.save(cfg)
+        self._update_memory_status()
+
+    def action_recall_memory(self) -> None:
+        """Open the memory recall dialog to query past session events."""
+        if self._memory_bridge is None or not self._memory_bridge.is_connected:
+            self._show_toast(
+                "Memory",
+                "Memory not connected. Toggle memory on first.",
+            )
+            return
+        self.push_screen(MemoryRecallDialog())
+
+    def action_clear_memory(self) -> None:
+        """Open confirmation dialog to clear all session memory."""
+        if self._memory_bridge is None or not self._memory_bridge.is_connected:
+            self._show_toast("Memory", "Memory not connected.")
+            return
+        self.push_screen(
+            MemoryClearDialog(),
+            callback=self._handle_memory_clear,
+        )
+
+    async def _handle_memory_clear(self, confirmed: bool | None) -> None:
+        if not confirmed or self._memory_bridge is None:
+            return
+        ok, msg = await self._memory_bridge.clear()
+        self._show_toast("Memory", msg)
+
+    def _update_memory_status(self) -> None:
+        """Update the status bar memory indicator."""
+        if self._memory_bridge is None:
+            status = ""
+        else:
+            raw = self._memory_bridge.status
+            if raw == "on":
+                status = "On"
+            elif raw == "err":
+                status = "\u26a0"
+            else:
+                status = "Off"
+        try:
+            bar = self.query_one(StatusBar)
+            bar.set_memory_status(status)
+        except Exception:
+            pass
+
+    def _show_toast(self, title: str, message: str) -> None:
+        try:
+            toast = self.query_one(ToastOverlay)
+            toast.show_toast(title=title, message=message)
+        except Exception:
+            pass
 
     def action_session_search(self) -> None:
         """Toggle the in-session search bar."""
@@ -1552,3 +1704,5 @@ class TAMEApp(App):
 
     def on_unmount(self) -> None:
         self._session_manager.close_all()
+        if self._memory_bridge is not None:
+            self._memory_bridge.stop_server()
